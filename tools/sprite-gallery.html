@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brickbox Sprite Gallery</title>
+<style>
+  :root { --bg: #14121f; --panel: #241f3a; --panel-2: #2f2950; --ink: #f4efe6; --dim: #a79fc2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 12px/1.3 ui-monospace, Menlo, monospace; }
+  header { position: sticky; top: 0; z-index: 2; background: #1b1830; padding: 8px 16px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid #3b3463; }
+  header h1 { font-size: 14px; margin: 0; letter-spacing: 1px; }
+  header label { color: var(--dim); }
+  section { padding: 10px 16px 18px; border-bottom: 1px solid #2f2950; }
+  section h2 { font-size: 13px; margin: 6px 0 10px; color: #ffcf4a; letter-spacing: 1px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+  .card { background: var(--panel); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+  .card .name { color: var(--ink); font-weight: bold; }
+  .card .meta { color: var(--dim); font-size: 10px; }
+  .row { display: flex; gap: 4px; align-items: flex-end; flex-wrap: wrap; }
+  .anim { color: var(--dim); font-size: 10px; min-width: 44px; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+  .frame { background: #2f2950; outline: 1px solid #3b3463; }
+  .light .frame { background: #6cb553; }
+  .arena { display: flex; flex-wrap: wrap; gap: 10px; }
+  .arena figure { margin: 0; }
+  .arena figcaption { color: var(--dim); margin-top: 3px; }
+  #errors { color: #ff5a5a; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>BRICKBOX ROYALE · SPRITE GALLERY</h1>
+  <label>scale <select id="scale"><option>2</option><option>3</option><option selected>4</option><option>6</option></select></label>
+  <label><input type="checkbox" id="lightbg"> grass backdrop</label>
+  <span id="count" style="color:var(--dim)"></span>
+</header>
+<div id="errors"></div>
+<main id="main"></main>
+<script type="module">
+import { SPRITES, SPRITE_PROBLEMS, HEROES, WEAPON_IDS } from '../src/art/sprites.js';
+import { getFrame, frameCount, spriteSize, drawSprite, drawHero, cardArt, iconURL, CARD_ART_MAP, drawShadow } from '../src/art/sprite-cache.js';
+import { BIOMES, renderArenaBackground, drawRiver } from '../src/art/tiles.js';
+
+const params = new URLSearchParams(location.search);
+const only = params.get('only'); // section id filter
+const teamsParam = params.get('teams') ?? '01';
+let SCALE = Number(params.get('scale') ?? 4);
+document.getElementById('scale').value = String(SCALE);
+document.getElementById('scale').onchange = (e) => { params.set('scale', e.target.value); location.search = params.toString(); };
+document.getElementById('lightbg').onchange = (e) => document.body.classList.toggle('light', e.target.checked);
+if (params.get('light')) { document.body.classList.add('light'); document.getElementById('lightbg').checked = true; }
+
+const errs = [];
+if (SPRITE_PROBLEMS.length) errs.push('Authoring problems:\n' + SPRITE_PROBLEMS.join('\n'));
+const main = document.getElementById('main');
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+function section(id, title) {
+  if (only && !only.split(',').includes(id)) return null;
+  const s = el('section'); s.id = id;
+  s.append(el('h2', null, title));
+  const g = el('div', 'grid'); s.append(g);
+  main.append(s);
+  return g;
+}
+
+function frameCanvas(key, anim, i, team, scale = SCALE) {
+  const src = getFrame(key, anim, i, team);
+  const c = el('canvas', 'frame');
+  c.width = src.width * scale; c.height = src.height * scale;
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+  g.drawImage(src, 0, 0, c.width, c.height);
+  c.title = `${key}.${anim}[${i}] team ${team}`;
+  return c;
+}
+
+const usesTeam = (s) => Object.values(s.anims).some((fr) => (typeof fr[0] === 'string' ? [fr] : fr).some((f) => f.some((r) => /[TtL]/.test(r))));
+
+function spriteCard(key, scale = SCALE) {
+  const s = SPRITES[key];
+  const card = el('div', 'card');
+  card.append(el('div', 'name', key));
+  card.append(el('div', 'meta', `${s.w}x${s.h} · ${s.fps}fps${s.fly ? ' · fly' : ''}`));
+  const teams = usesTeam(s) ? teamsParam.split('').map(Number) : [0];
+  for (const team of teams) {
+    for (const anim of Object.keys(s.anims)) {
+      const row = el('div', 'row');
+      row.append(el('span', 'anim', `${anim}${teams.length > 1 ? ' t' + team : ''}`));
+      const n = frameCount(key, anim);
+      for (let i = 0; i < n; i++) row.append(frameCanvas(key, anim, i, team, scale));
+      card.append(row);
+    }
+  }
+  return card;
+}
+
+const KIND_ORDER = [
+  ['troop', 'Troops'], ['building', 'Buildings'], ['tower', 'Towers'], ['pet', 'Pets'],
+  ['projectile', 'Projectiles'], ['map', 'Map objects'], ['chest', 'Chests'], ['icon', 'Icons (spells / gadgets / emotes / UI / gems)'],
+];
+const keyFilter = params.get('keys') ? params.get('keys').split(',') : null;
+const keys = Object.keys(SPRITES).filter((k) => !keyFilter || keyFilter.includes(k));
+document.getElementById('count').textContent = `${keys.length} sprite keys`;
+
+// --- live animation strip -------------------------------------------------------------------
+const live = section('live', 'Live animation (all troops, walk + attack, both teams)');
+const liveItems = [];
+if (live) {
+  const troops = keys.filter((k) => SPRITES[k].kind === 'troop' || SPRITES[k].kind === 'building' || SPRITES[k].kind === 'pet');
+  const c = el('canvas'); const W = 960; const rowH = 34;
+  const perRow = 24; const rows = Math.ceil(troops.length / perRow) * 2;
+  c.width = W; c.height = rows * rowH + 10; c.style.width = (W * 2) / 2 + 'px';
+  live.append(c);
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+  const tick = (now) => {
+    const t = now / 1000;
+    g.fillStyle = '#6cb553'; g.fillRect(0, 0, c.width, c.height);
+    troops.forEach((k, i) => {
+      const s = SPRITES[k];
+      const x = 20 + (i % perRow) * 39;
+      const yRow = Math.floor(i / perRow) * 2;
+      const anims = Object.keys(s.anims);
+      const anim = anims.includes('walk') ? 'walk' : anims[0];
+      const atk = anims.includes('attack') ? 'attack' : anim;
+      drawShadow(g, x, 4 + (yRow + 1) * rowH - 2, s.w);
+      drawSprite(g, k, x, 4 + (yRow + 1) * rowH - (s.fly ? 6 : 2), { anim, t, team: 0 });
+      drawShadow(g, x, 4 + (yRow + 2) * rowH - 2, s.w);
+      drawSprite(g, k, x, 4 + (yRow + 2) * rowH - (s.fly ? 6 : 2), { anim: atk, t, team: 1, flip: true, flash: (t * 2) % 3 < 0.15 ? 1 : 0 });
+    });
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+// --- per-kind static frames -------------------------------------------------------------------
+for (const [kind, title] of KIND_ORDER) {
+  const g = section('k-' + kind, title);
+  if (!g) continue;
+  for (const k of keys.filter((k) => (SPRITES[k].kind ?? 'troop') === kind)) g.append(spriteCard(k, kind === 'tower' && SPRITES[k].w > 30 ? Math.max(2, SCALE - 1) : SCALE));
+}
+{
+  const g = section('k-weapon', 'Weapons (pointing right; grip = hand pivot in label)');
+  if (g) for (const k of WEAPON_IDS.filter((k) => keys.includes(k))) {
+    const card = spriteCard(k);
+    card.querySelector('.meta').textContent += ` · grip ${SPRITES[k].grip}`;
+    g.append(card);
+  }
+}
+
+// --- heroes -----------------------------------------------------------------------------------
+{
+  const g = section('heroes', 'Heroes · 3 forms · idle / walk / shoot + weapons at several aims');
+  if (g) {
+    const weapons = ['rifle', 'katana', 'flameblaster', 'rocketlauncher', 'unicorngun', 'railsniper', 'hammer', 'minigun'];
+    const aims = [0, -0.6, Math.PI, Math.PI + 0.6, Math.PI / 2];
+    const heroCanvases = [];
+    const heroFilter = params.get('hero') ? params.get('hero').split(',') : null;
+    for (const heroId of Object.keys(HEROES).filter((h) => !heroFilter || heroFilter.includes(h))) {
+      for (const form of [1, 2, 3]) {
+        const card = el('div', 'card');
+        card.append(el('div', 'name', `${heroId} · form ${form}`));
+        card.append(el('div', 'meta', `${HEROES[heroId].element}`));
+        const S = SCALE;
+        const c = el('canvas', 'frame');
+        const cols = 2 + 4 + 2 + aims.length;
+        c.width = cols * 20 * S; c.height = 26 * S * 2;
+        card.append(c);
+        heroCanvases.push({ c, heroId, form, weapons });
+        g.append(card);
+      }
+    }
+    const tick = (now) => {
+      const t = now / 1000;
+      for (const { c, heroId, form } of heroCanvases) {
+        const S = SCALE;
+        const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+        g2.clearRect(0, 0, c.width, c.height);
+        for (const team of [0, 1]) {
+          const yy = (team + 1) * 26 * S - 4 * S;
+          let col = 0;
+          const at = (o) => drawHero(g2, { heroId, form, team, scale: S, x: (col++ * 20 + 10) * S, y: yy, ...o });
+          // static frames: idle 0/1, walk 0..3, shoot 0/1
+          at({ anim: 'idle', t: 0 }); at({ anim: 'idle', t: 0.5 });
+          for (let f = 0; f < 4; f++) at({ anim: 'walk', t: f / 8 });
+          at({ anim: 'shoot', t: 0, weaponId: weapons[(form + team) % weapons.length] });
+          at({ anim: 'walk', t, weaponId: weapons[(form + team + 3) % weapons.length], aim: Math.sin(t) * 0.3 });
+          aims.forEach((aim, i) => at({ anim: 'idle', t: 0, weaponId: weapons[(i + form * 2 + team) % weapons.length], aim }));
+        }
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+}
+
+// --- hero close-up: every hero x form, idle, both teams -----------------------------------------
+{
+  const g = section('herozoom', 'Hero close-up (forms 1-3, team 0 / team 1)');
+  if (g) {
+    const S = SCALE + 2;
+    const ids = Object.keys(HEROES);
+    const c = el('canvas', 'frame');
+    c.width = 6 * 18 * S; c.height = ids.length * 22 * S;
+    g.append(c);
+    const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+    ids.forEach((heroId, row) => {
+      for (let form = 1; form <= 3; form++) for (const team of [0, 1]) {
+        const col = (form - 1) * 2 + team;
+        drawHero(g2, { heroId, form, team, scale: S, x: (col * 18 + 9) * S, y: (row * 22 + 19) * S, anim: 'idle', t: 0.1 });
+      }
+    });
+  }
+}
+
+// --- card art ---------------------------------------------------------------------------------
+{
+  const g = section('cards', 'Card art (32x32)');
+  if (g) for (const id of Object.keys(CARD_ART_MAP)) {
+    const card = el('div', 'card');
+    card.append(el('div', 'name', id));
+    const src = cardArt(id);
+    const c = el('canvas', 'frame'); const S = Math.max(2, SCALE - 1);
+    c.width = 32 * S; c.height = 32 * S;
+    const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false; g2.drawImage(src, 0, 0, c.width, c.height);
+    card.append(c);
+    g.append(card);
+  }
+}
+
+// --- iconURL check ----------------------------------------------------------------------------
+{
+  const g = section('urls', 'iconURL() <img> check');
+  if (g) for (const k of ['ui_elixir', 'ui_gold', 'ui_gem', 'ui_trophy', 'ui_brick', 'card_knight', 'card_fireball', 'hero_ember', 'hero_grim', 'chest_epic', 'emote_gg']) {
+    const card = el('div', 'card'); card.append(el('div', 'name', k));
+    const img = el('img'); img.src = iconURL(k, 3); img.style.imageRendering = 'pixelated';
+    card.append(img); g.append(card);
+  }
+}
+
+// --- arenas -----------------------------------------------------------------------------------
+{
+  const g = section('arenas', 'Arena backgrounds (288x512) with towers + sample units');
+  if (g) {
+    g.classList.add('arena');
+    const AS = Number(params.get('arenaScale') ?? 1);
+    const arenas = [];
+    for (const id of Object.keys(BIOMES)) {
+      const fig = el('figure');
+      const c = el('canvas'); c.width = 288 * AS; c.height = 512 * AS;
+      fig.append(c, el('figcaption', null, `${id} — ${BIOMES[id].name}`));
+      g.append(fig);
+      arenas.push({ id, c });
+    }
+    const T = 16;
+    const units = [
+      ['knight', 3.5, 20, 0], ['archer', 5, 21, 0], ['giant', 14.5, 19, 0], ['skeleton', 9, 18.5, 0], ['skeleton', 9.8, 18.8, 0],
+      ['knight', 14, 11, 1], ['zombie', 3.5, 12, 1], ['sheep', 8, 12.5, 1], ['dragon', 10, 9.5, 1], ['bat', 6, 9, 1], ['mech', 13.5, 13, 1],
+    ];
+    const tick = (now) => {
+      const t = now / 1000;
+      for (const { id, c } of arenas) {
+        const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+        g2.setTransform(AS, 0, 0, AS, 0, 0);
+        g2.drawImage(renderArenaBackground(id, 7), 0, 0);
+        drawRiver(g2, id, t);
+        // towers placed like src/battle/render.js: feet at centre + r*0.75 tiles, king 6px below the keep top
+        for (const [x, y, team] of [[3.5, 6.5, 1], [14.5, 6.5, 1], [3.5, 25.5, 0], [14.5, 25.5, 0]]) {
+          drawSprite(g2, 'princess_tower', x * T, (y + 1.5 * 0.75) * T, { team, anim: 'attack', t });
+        }
+        for (const [y, team] of [[3, 1], [29, 0]]) {
+          const bottom = (y + 2 * 0.75) * T;
+          drawSprite(g2, 'king_tower', 9 * T, bottom, { team });
+          drawSprite(g2, 'king', 9 * T, bottom - 48 + 6, { team, t, anim: team ? 'angry' : 'cheer' });
+        }
+        drawSprite(g2, 'elem_fire', 3.5 * T, (25.5 + 1.125) * T - 40 + 4 + Math.sin(t * 3), { t });
+        for (const [k, x, y, team] of units) {
+          const fly = SPRITES[k].fly;
+          drawShadow(g2, x * T, y * T, SPRITES[k].w);
+          drawSprite(g2, k, x * T, y * T - (fly ? 8 : 0), { anim: 'walk', t: t + x, team, flip: team === 1 });
+        }
+        drawHero(g2, { heroId: 'ember', form: 3, x: 9 * T, y: 22 * T, team: 0, anim: 'walk', t, weaponId: 'rifle', aim: -Math.PI / 2 + Math.sin(t) * 0.5 });
+        drawSprite(g2, 'brickpile', 1.5 * T + 16, 22 * T, { t });
+        drawSprite(g2, 'tesla', 11 * T, 24 * T, { anim: 'attack', t, team: 0 });
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+}
+
+window.__galleryReady = true;
+document.getElementById('errors').textContent = errs.join('\n');
+</script>
+</body>
+</html>

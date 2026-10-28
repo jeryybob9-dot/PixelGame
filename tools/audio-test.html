@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brickbox Audio Test</title>
+<style>
+  :root {
+    --bg: #14121f; --panel: #241f3a; --panel-2: #2f2950; --ink: #f4efe6; --ink-dim: #a79fc2;
+    --gold: #ffcf4a; --gem: #4ae3ff; --elixir: #d64ae8; --good: #5fd35f; --bad: #ff5a5a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
+  body { padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  h2 { font-size: 13px; margin: 18px 0 8px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+  button {
+    font: inherit; color: var(--ink); background: var(--panel-2); border: 2px solid #463d74; border-radius: 6px;
+    padding: 8px 10px; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  }
+  button:active { transform: translateY(1px); background: #3a3263; }
+  button.on { border-color: var(--gold); color: var(--gold); }
+  #enable { font-size: 16px; padding: 12px 18px; background: var(--good); color: #102010; border-color: #3c9a3c; font-weight: 700; }
+  #enable.done { background: var(--panel-2); color: var(--good); border-color: var(--good); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; }
+  .panel { background: var(--panel); border-radius: 8px; padding: 10px 12px; }
+  label { display: flex; align-items: center; gap: 8px; color: var(--ink-dim); }
+  label output { color: var(--ink); min-width: 2.5em; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 130px; accent-color: var(--elixir); }
+  #status { font-family: ui-monospace, monospace; color: var(--gem); font-size: 12px; }
+  canvas { width: 100%; height: 60px; display: block; background: #0d0b16; border-radius: 6px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>Brickbox Royale — audio test bench</h1>
+<div class="row">
+  <button id="enable" type="button">Enable audio</button>
+  <span id="status">audio locked</span>
+</div>
+<canvas id="scope" width="600" height="60" aria-label="Output level"></canvas>
+
+<h2>Mixer</h2>
+<div class="panel row">
+  <label>Music <input id="musicVol" type="range" min="0" max="1" step="0.01"><output id="musicVolOut"></output></label>
+  <label>SFX <input id="sfxVol" type="range" min="0" max="1" step="0.01"><output id="sfxVolOut"></output></label>
+  <label><input id="mute" type="checkbox"> Muted</label>
+</div>
+
+<h2>Music</h2>
+<div class="panel">
+  <div class="grid" id="themes"></div>
+  <div class="row" style="margin-top:10px">
+    <label>Intensity <input id="intensity" type="range" min="0" max="1" step="0.01" value="0"><output id="intensityOut">0</output></label>
+  </div>
+</div>
+
+<h2>SFX</h2>
+<div class="panel row">
+  <label>Pitch <input id="pitch" type="range" min="0.5" max="2" step="0.01" value="1"><output id="pitchOut">1</output></label>
+  <label>Pan <input id="pan" type="range" min="-1" max="1" step="0.01" value="0"><output id="panOut">0</output></label>
+  <button id="playAll" type="button">Play all</button>
+  <button id="rapid" type="button">Rapid-fire test</button>
+</div>
+<div class="grid" id="sfx" style="margin-top:8px"></div>
+
+<script type="module">
+import { audio, SFX_NAMES, MUSIC_THEMES } from '../src/core/audio.js';
+
+const $ = (id) => document.getElementById(id);
+window.audio = audio; // handy from the console
+
+// Every interaction may be the gesture that unlocks audio (iOS).
+document.addEventListener('pointerdown', () => audio.unlock(), { capture: true });
+
+$('enable').addEventListener('click', () => {
+  audio.unlock();
+  $('enable').classList.add('done');
+  $('enable').textContent = 'Audio enabled';
+});
+
+const slider = (id, get, set, fmt = (v) => v.toFixed(2)) => {
+  const el = $(id), out = $(id + 'Out');
+  el.value = get();
+  out.textContent = fmt(+el.value);
+  el.addEventListener('input', () => { set(+el.value); out.textContent = fmt(+el.value); });
+};
+slider('musicVol', () => audio.musicVolume, (v) => audio.setMusicVolume(v));
+slider('sfxVol', () => audio.sfxVolume, (v) => audio.setSfxVolume(v));
+slider('intensity', () => audio.intensity, (v) => audio.setIntensity(v));
+slider('pitch', () => 1, () => {});
+slider('pan', () => 0, () => {});
+$('mute').checked = audio.muted;
+$('mute').addEventListener('change', (e) => audio.setMuted(e.target.checked));
+
+const themeBtns = new Map();
+for (const name of [...MUSIC_THEMES, null]) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = name ?? 'stop';
+  b.dataset.theme = name ?? '';
+  b.addEventListener('click', () => {
+    audio.unlock();
+    audio.music(name);
+    for (const [n, el] of themeBtns) el.classList.toggle('on', n === audio.theme && n !== null);
+  });
+  themeBtns.set(name, b);
+  $('themes').append(b);
+}
+
+const opts = () => ({ pitch: +$('pitch').value, pan: +$('pan').value });
+for (const name of SFX_NAMES) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = name;
+  b.dataset.sfx = name;
+  b.addEventListener('click', () => { audio.unlock(); audio.sfx(name, opts()); });
+  $('sfx').append(b);
+}
+
+let playing = null;
+$('playAll').addEventListener('click', () => {
+  audio.unlock();
+  if (playing) { clearTimeout(playing); playing = null; return; }
+  let i = 0;
+  const next = () => {
+    if (i >= SFX_NAMES.length) { playing = null; return; }
+    const name = SFX_NAMES[i++];
+    $('status').textContent = 'playing ' + name;
+    audio.sfx(name, opts());
+    playing = setTimeout(next, 700);
+  };
+  next();
+});
+
+$('rapid').addEventListener('click', () => {
+  audio.unlock();
+  let n = 0;
+  const id = setInterval(() => {
+    audio.sfx(n % 3 ? 'shoot_minigun' : 'shoot_rifle', { pan: Math.sin(n / 3) * 0.8 });
+    if (n % 7 === 0) audio.sfx('explosion_small');
+    if (++n > 60) clearInterval(id);
+  }, 16);
+});
+
+// Status + oscilloscope.
+const cv = $('scope'), g = cv.getContext('2d');
+let buf = null;
+function frame() {
+  const i = audio.info();
+  if (!playing) $('status').textContent = `state=${i.state} theme=${i.theme ?? '-'} voices=${i.voices} players=${i.players} errors=${i.errors}`;
+  const an = audio.analyser();
+  g.fillStyle = '#0d0b16';
+  g.fillRect(0, 0, cv.width, cv.height);
+  if (an) {
+    if (!buf || buf.length !== an.fftSize) buf = new Float32Array(an.fftSize);
+    an.getFloatTimeDomainData(buf);
+    g.strokeStyle = '#4ae3ff';
+    g.beginPath();
+    for (let x = 0; x < cv.width; x++) {
+      const y = cv.height / 2 - buf[Math.floor((x / cv.width) * buf.length)] * cv.height / 2;
+      x ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.stroke();
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

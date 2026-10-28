@@ -1,0 +1,25 @@
+{
+  "name": "brickbox-royale",
+  "version": "0.1.0",
+  "description": "Brickbox Royale: an original 2D pixel-art lane-battle / hero-shooter / brick-RTS / god-sandbox mobile game.",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test \"tests/**/*.{js,mjs}\"",
+    "icons": "node scripts/make-icons.mjs",
+    "ios:sync": "npm run build && npx cap sync ios",
+    "ios:open": "npx cap open ios"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/ios": "8.5.3",
+    "esbuild": "0.28.2"
+  }
+}

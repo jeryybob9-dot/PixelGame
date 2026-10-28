@@ -1,0 +1,17 @@
+{
+  "appId": "com.brickbox.royale",
+  "appName": "Brickbox Royale",
+  "webDir": "dist",
+  "backgroundColor": "#14121f",
+  "server": {
+    "hostname": "localhost",
+    "iosScheme": "capacitor"
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#14121f",
+    "scrollEnabled": false,
+    "allowsLinkPreview": false
+  },
+  "plugins": {}
+}

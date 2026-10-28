@@ -1,0 +1,14 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# Capacitor iOS (generated / machine-specific; see also ios/.gitignore)
+ios/App/App/public/
+ios/App/Pods/
+ios/DerivedData/
+
+# OS / logs
+.DS_Store
+*.log
