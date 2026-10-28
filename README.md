@@ -1,6 +1,7 @@
 # Brickbox: Tiny Gods
 
-An original 2D pixel-art game for phones. You are a tiny god with a champion on a small living island:
+An original pixel-art game for phones. You are a tiny god with a champion on a small living island, shown as a 3D
+world of toy bricks with pixel-sprite heroes and creatures. You can switch back to classic 2D in the settings.
 
 - **Fight** as your hero.
 - **Build** a village brick by brick.
@@ -8,7 +9,8 @@ An original 2D pixel-art game for phones. You are a tiny god with a champion on 
 - **Cast** Divine Cards from your deck.
 
 A rival god lives on the other side of the island, and only one village can rule it. Everything (art, sound and
-code) is original. It runs as plain JavaScript and Canvas with no runtime dependencies. You can play it in the
+code) is original. It runs as plain JavaScript with Canvas and WebGL. The only library is three.js (MIT), which is
+bundled into the game. You can play it in the
 browser, as an iPhone home-screen app, or as a native iOS app.
 
 The full design is in [`docs/DESIGN.md`](docs/DESIGN.md).
@@ -192,3 +194,6 @@ ios/                  Capacitor iOS project (generated)
   SIL Open Font License 1.1: [`assets/fonts/OFL-PixelifySans.txt`](assets/fonts/OFL-PixelifySans.txt).
 
 The fonts come from the [Google Fonts](https://github.com/google/fonts) repository and are bundled unmodified.
+
+- **three.js** (c) 2010–present three.js authors, MIT License. Bundled into the game for the 3D island view; its license
+  is copied to `dist/licenses/three.js-MIT.txt` by the build.

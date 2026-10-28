@@ -188,3 +188,9 @@ test('horde nights escalate and end when the keep falls', () => {
   assert.ok(R.horde.night >= 1, `night ${R.horde.night}`);
   for (let i = 1; i < sizes.length; i++) assert.ok(sizes[i] >= sizes[i - 1], 'hordes grow');
 });
+
+test('the 3D view module loads and reports no WebGL without a browser', async () => {
+  const m = await import('../src/realm3d/render3d.js');
+  assert.equal(typeof m.Realm3DRenderer, 'function');
+  assert.equal(m.webglAvailable(), false);
+});

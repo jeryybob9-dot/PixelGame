@@ -750,3 +750,4 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .realm .b-coach { top: auto; bottom: 10px; left: 8px; right: 8px; width: auto; max-width: none; transform: none; z-index: 4; pointer-events: none; }
 .realm .b-coach.fade { opacity: 0; transform: translateY(10px); }
 .realm .b-coach { animation: fade-in 0.25s; }
+.r-hud { position: absolute; left: 0; top: 0; display: block; pointer-events: none; z-index: 1; }

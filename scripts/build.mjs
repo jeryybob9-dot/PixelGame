@@ -278,6 +278,8 @@ async function main() {
   for (const f of fs.existsSync(path.join(ROOT, FONT_DIR)) ? fs.readdirSync(path.join(ROOT, FONT_DIR)) : []) {
     if (/^OFL.*\.txt$/i.test(f)) write(path.join('licenses', f), fs.readFileSync(path.join(ROOT, FONT_DIR, f)));
   }
+  const threeLicense = path.join(ROOT, 'node_modules', 'three', 'LICENSE');
+  if (fs.existsSync(threeLicense)) write(path.join('licenses', 'three.js-MIT.txt'), fs.readFileSync(threeLicense));
 
   // Report.
   console.log(`\n  Brickbox: Tiny Gods build  (${bundled.inputs} modules, ${Math.round(performance.now() - t0)} ms)\n`);

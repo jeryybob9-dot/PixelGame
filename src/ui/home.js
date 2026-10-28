@@ -263,6 +263,7 @@ export function openSettings(app) {
     toggle('set-mute', 'Mute everything', 'muted'),
     toggle('set-dmg', 'Damage numbers', 'dmgNumbers'),
     toggle('set-fx', 'Extra particles', 'particles', 'high', 'low'),
+    toggle('set-3d', '3D island (off = classic 2D)', 'graphics', '3d', '2d'),
     el('button.btn.btn-ghost.wide', { type: 'button', onclick: () => openHowTo(app) }, 'How to play'),
     el('button.btn.btn-red.wide', { type: 'button', onclick: async () => {
       const yes = await app.confirm({ title: 'Reset all progress?', text: 'Cards, trophies, gold and heroes will be lost. This cannot be undone.', yes: 'Reset', danger: true });

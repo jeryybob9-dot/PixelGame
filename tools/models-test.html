@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Brick World Models</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #6f6d80; overflow: hidden; font: 600 11px/1.2 system-ui, sans-serif; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  #hud { position: fixed; left: 8px; top: 8px; color: #fff; text-shadow: 0 1px 2px #000a; pointer-events: none; white-space: pre; }
+  .lbl { position: fixed; transform: translate(-50%, 0); color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; white-space: nowrap; font-size: 10px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<div id="labels"></div>
+<script type="module">
+import * as THREE from '../src/vendor/three.js';
+import {
+  structureModel, scaffoldModel, depositModel, cardBuildingModel, treeGeometry, rockGeometry, crystalGeometry,
+  MODEL_MATERIALS, MODEL_BIOMES, CARD_MODEL_IDS, triangleCount,
+} from '../src/realm3d/models.js';
+
+// URL params: section=all|structures|cards|scenery|scaffold, cx, cz (look-at), dist, pitch (deg), yaw (deg),
+// fov, labels=0, shadows=1, spin=1 (slowly orbit), only=<structure id> (single model close-up), team=0|1|n
+const q = new URLSearchParams(location.search);
+const num = (k, d) => (q.has(k) ? parseFloat(q.get(k)) : d);
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 3));
+renderer.setSize(innerWidth, innerHeight, false);
+renderer.shadowMap.enabled = q.get('shadows') === '1';
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#6f6d80');
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7f99, 1.35));
+const sun = new THREE.DirectionalLight(0xffffff, 1.9);
+sun.position.set(-6, 12, 8);
+sun.target.position.set(0, 0, 0);
+scene.add(sun, sun.target);
+if (renderer.shadowMap.enabled) {
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 0.5, far: 80 });
+  sun.shadow.bias = -0.0005;
+}
+
+// ground + grid
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshLambertMaterial({ color: '#9a98a8' }));
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+const grid = new THREE.GridHelper(200, 200, 0x7c7a8c, 0x86849a);
+grid.position.y = 0.002;
+scene.add(grid);
+
+const labels = [];
+function label(text, x, z, y = -0.05) {
+  if (q.get('labels') === '0') return;
+  const el = document.createElement('div');
+  el.className = 'lbl';
+  el.textContent = text;
+  document.getElementById('labels').appendChild(el);
+  labels.push({ el, p: new THREE.Vector3(x, y, z) });
+}
+
+const stats = {};
+function place(obj, x, z, name) {
+  if (!obj) return;
+  obj.position.set(x, 0, z);
+  scene.add(obj);
+  obj.traverse((o) => { if (o.isMesh && renderer.shadowMap.enabled) { o.castShadow = true; o.receiveShadow = true; } });
+  if (name) stats[name] = triangleCount(obj);
+}
+function placeGeo(geo, x, z, name) {
+  const m = new THREE.Mesh(geo, MODEL_MATERIALS.solid);
+  m.castShadow = m.receiveShadow = true;
+  m.position.set(x, 0, z);
+  scene.add(m);
+  if (name) stats[name] = triangleCount(geo);
+}
+function tile(x, z, w, h, color) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshLambertMaterial({ color }));
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, 0.004, z);
+  m.receiveShadow = true;
+  scene.add(m);
+}
+
+const STRUCTS = ['keep', 'house', 'barracks', 'tower', 'temple', 'outpost', 'wall', 'shrine', 'nest'];
+const SIZE = { keep: [3, 3], house: [2, 2], barracks: [3, 2], tower: [2, 2], temple: [2, 2], outpost: [1, 1], wall: [1, 1], shrine: [2, 2], nest: [2, 1] };
+const GROUND = { meadow: '#6cb553', desert: '#e6c47c', frost: '#dbe7f0', swamp: '#5f7d4b', crystal: '#5d628f', lava: '#4b3a3f', candy: '#f4c8da', void: '#2b2344' };
+
+const only = q.get('only');
+let target = new THREE.Vector3(0, 0, 0);
+let dist = 30;
+
+if (only) {
+  const teams = q.has('team') ? [q.get('team') === 'n' ? null : +q.get('team')] : [0, 1, null];
+  teams.forEach((t, i) => {
+    const x = (i - (teams.length - 1) / 2) * 4;
+    const obj = structureModel(only, t) ?? cardBuildingModel(only, t);
+    place(obj, x, 0, `${only}/${t}`);
+    const [w, h] = SIZE[only] ?? [1, 1];
+    tile(x, 0, w, h, '#b9b7c6');
+  });
+  dist = 9;
+} else {
+  // structures: three rows (team 0, 1, neutral)
+  let x0 = -16;
+  const xs = {};
+  let x = x0;
+  for (const id of STRUCTS) {
+    const [w] = SIZE[id];
+    xs[id] = x + w / 2;
+    x += w + 1.1;
+  }
+  const off = -(x - 1.1 - x0) / 2 - x0;
+  [0, 1, null].forEach((team, row) => {
+    const z = -15 + row * 4;
+    for (const id of STRUCTS) {
+      const [w, h] = SIZE[id];
+      const px = xs[id] + off;
+      tile(px, z, w, h, '#b9b7c6');
+      place(structureModel(id, team), px, z, `${id}/${team}`);
+      if (row === 0) label(id, px, z - h / 2 - 0.6);
+    }
+  });
+  // scaffold stages + deposits
+  [0, 0.34, 0.67, 1].forEach((p, i) => {
+    const px = -12 + i * 3;
+    tile(px, -2.5, 2, 2, '#b9b7c6');
+    place(scaffoldModel(2, 2, p), px, -2.5, `scaffold2x2@${p}`);
+    label(`scaffold ${p}`, px, -1.2);
+  });
+  [0, 0.34, 0.67].forEach((p, i) => {
+    const px = 1 + i * 4;
+    tile(px, -2.5, 3, 2, '#b9b7c6');
+    place(scaffoldModel(3, 2, p), px, -2.5, `scaffold3x2@${p}`);
+  });
+  place(depositModel(false), 13, -2.5, 'deposit');
+  place(depositModel(true), 15, -2.5, 'deposit-rich');
+  label('deposits', 14, -1.6);
+  // card buildings, two rows
+  [0, 1].forEach((team, row) => {
+    CARD_MODEL_IDS.forEach((id, i) => {
+      const px = -9 + i * 2.2;
+      const z = 1 + row * 2;
+      tile(px, z, 1, 1, '#b9b7c6');
+      place(cardBuildingModel(id, team), px, z, `card:${id}/${team}`);
+      if (row === 0) label(id, px, z - 1);
+    });
+  });
+  // scenery rows per biome
+  MODEL_BIOMES.forEach((b, row) => {
+    const z = 6.5 + row * 2.6;
+    tile(0, z, 22, 2.2, GROUND[b]);
+    label(b, -12, z, 0);
+    for (let v = 0; v < 3; v++) {
+      placeGeo(treeGeometry(b, v), -9 + v * 1.4, z, `tree:${b}:${v}`);
+      placeGeo(treeGeometry(b, v), -9 + v * 1.4 + 0.7, z + 0.6, null);
+    }
+    for (let v = 0; v < 3; v++) {
+      for (let k = 0; k < 2; k++) placeGeo(rockGeometry(b, v), -3 + v * 2.2 + k, z - 0.2, k ? null : `rock:${b}:${v}`);
+    }
+    if (b === 'crystal' || b === 'void' || row === 0) for (let v = 0; v < 3; v++) placeGeo(crystalGeometry(v), 4.5 + v * 1.3, z, `crystal:${v}`);
+  });
+  const sec = q.get('section') ?? 'all';
+  const presets = {
+    all: [0, 2, 48], structures: [0, -11, 17], cards: [-2, 1, 12], scaffold: [-2, -2.5, 14], scenery: [-2, 15, 22],
+    trees: [-7.5, 15.5, 19], rocks: [0, 15.5, 19],
+  };
+  const [cx, cz, d] = presets[sec] ?? presets.all;
+  target.set(cx, 0, cz);
+  dist = d;
+}
+target.set(num('cx', target.x), 0, num('cz', target.z));
+dist = num('dist', dist);
+
+const camera = new THREE.PerspectiveCamera(num('fov', 30), innerWidth / innerHeight, 0.1, 400);
+let yaw = num('yaw', 0) * Math.PI / 180;
+const pitch = num('pitch', 55) * Math.PI / 180;
+function placeCamera() {
+  camera.position.set(
+    target.x + Math.sin(yaw) * Math.cos(pitch) * dist,
+    target.y + Math.sin(pitch) * dist,
+    target.z + Math.cos(yaw) * Math.cos(pitch) * dist,
+  );
+  camera.lookAt(target);
+}
+placeCamera();
+
+// drag to pan, wheel to zoom
+let drag = null;
+canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; });
+addEventListener('pointerup', () => { drag = null; });
+addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const s = dist / 400;
+  target.x -= (e.clientX - drag.x) * s;
+  target.z -= (e.clientY - drag.y) * s;
+  drag = { x: e.clientX, y: e.clientY };
+});
+addEventListener('wheel', (e) => { dist = Math.max(3, Math.min(120, dist * (1 + e.deltaY * 0.001))); });
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+const hud = document.getElementById('hud');
+const tmp = new THREE.Vector3();
+const clock = new THREE.Clock();
+function frame() {
+  const t = clock.getElapsedTime();
+  if (q.get('spin') === '1') yaw = t * 0.3;
+  placeCamera();
+  scene.traverse((o) => {
+    if (o.name === 'flag') o.rotation.y = Math.sin(t * 2.2 + o.parent.position.x) * 0.25;
+    if (o.name === 'glow') o.scale.setScalar(1 + Math.sin(t * 3) * 0.08);
+    if (o.name === 'eyes') o.scale.y = (t % 3) < 0.15 ? 0.1 : 1;
+  });
+  renderer.render(scene, camera);
+  for (const l of labels) {
+    tmp.copy(l.p).project(camera);
+    l.el.style.left = ((tmp.x + 1) / 2 * innerWidth) + 'px';
+    l.el.style.top = ((1 - tmp.y) / 2 * innerHeight) + 'px';
+    l.el.style.display = tmp.z < 1 ? '' : 'none';
+  }
+  hud.textContent = `calls ${renderer.info.render.calls}  tris ${renderer.info.render.triangles}`;
+  requestAnimationFrame(frame);
+}
+frame();
+window.__stats = stats;
+window.__ready = true;
+</script>
+</body>
+</html>

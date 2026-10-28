@@ -3,14 +3,12 @@
 
 import { BattleRenderer, hexA } from '../battle/render.js';
 import { TILE } from '../battle/constants.js';
-import { drawSprite, drawHero, spriteSize } from '../art/sprite-cache.js';
-import { renderRealmMap, renderRealmTile, drawRealmWater, drawTerritory, realmTileColor } from '../art/realm-tiles.js';
-import { T, STRUCTURES, WILD } from './constants.js';
+import { spriteSize } from '../art/sprite-cache.js';
+import { renderRealmMap, renderRealmTile, drawRealmWater, drawTerritory } from '../art/realm-tiles.js';
+import { T, STRUCTURES } from './constants.js';
+import { Minimap, tileColor } from './minimap.js';
 
 const FONT = '"Press Start 2P", ui-monospace, monospace';
-const TEAM_COL = ['#3b7dd8', '#d8453b'];
-const TEAM_DARK = ['#23468c', '#8c2a23'];
-const TEAM_LIGHT = ['#7fb8ff', '#ff8a7f'];
 const STRUCT_SCALE = { house: 1.5, temple: 1.35, barracks: 2, banner: 1, keep: 1, princess_tower: 1, wall: 1, nest: 1.25 };
 
 export class RealmRenderer extends BattleRenderer {
@@ -47,7 +45,7 @@ export class RealmRenderer extends BattleRenderer {
     lg.fillRect(0, 0, 64, 64);
     this.lavaTiles = [];
     for (let i = 0; i < R.tiles.length; i++) if (R.tiles[i] === T.LAVA) this.lavaTiles.push(i);
-    this.minimapBase = null;
+    this.minimap = new Minimap(R, this.biome);
   }
 
   /** Fill the css box with the canvas; the camera decides what is visible. 2x density is plenty for pixel art. */
@@ -113,12 +111,12 @@ export class RealmRenderer extends BattleRenderer {
       try {
         renderRealmTile(this.mapCtx, R.tiles, R.W, R.H, i % R.W, Math.floor(i / R.W), this.biome, this.seed);
       } catch {
-        this.mapCtx.fillStyle = safeColor(R.tiles[i], this.biome);
+        this.mapCtx.fillStyle = tileColor(R.tiles[i], this.biome);
         this.mapCtx.fillRect((i % R.W) * TILE, Math.floor(i / R.W) * TILE, TILE, TILE);
       }
     }
     R.tileChanges.length = 0;
-    this.minimapDirty = true;
+    this.minimap.dirty = true;
   }
 
   draw(ui = {}, dt = 0) {
@@ -646,88 +644,25 @@ export class RealmRenderer extends BattleRenderer {
 
   /** Flash a spot on the minimap (attacks, raids). */
   ping(x, y) {
-    (this.pings ||= []).push({ x, y, t: this.t });
+    this.minimap.ping(x, y, this.t);
   }
 
-  /** Draw the island, borders, buildings, units and the camera box into a small canvas (1 css px per tile * s). */
+  /** Draw the minimap into a small canvas (s css px per tile). */
   drawMinimap(mc, s = 2) {
-    const R = this.B;
-    const W = R.W;
-    const H = R.H;
-    if (!this.minimapBase || this.minimapDirty) {
-      this.minimapDirty = false;
-      const base = this.minimapBase || document.createElement('canvas');
-      base.width = W;
-      base.height = H;
-      const b = base.getContext('2d');
-      const img = b.createImageData(W, H);
-      for (let i = 0; i < W * H; i++) {
-        const hex = safeColor(R.tiles[i], this.biome);
-        img.data[i * 4] = parseInt(hex.slice(1, 3), 16);
-        img.data[i * 4 + 1] = parseInt(hex.slice(3, 5), 16);
-        img.data[i * 4 + 2] = parseInt(hex.slice(5, 7), 16);
-        img.data[i * 4 + 3] = 255;
-      }
-      b.putImageData(img, 0, 0);
-      this.minimapBase = base;
-    }
-    mc.imageSmoothingEnabled = false;
-    mc.clearRect(0, 0, W * s, H * s);
-    mc.drawImage(this.minimapBase, 0, 0, W * s, H * s);
-    // territory tint
-    for (let i = 0; i < W * H; i++) {
-      const o = R.owner[i];
-      if (o !== 0 && o !== 1) continue;
-      mc.fillStyle = o === 0 ? 'rgba(80,150,255,0.35)' : 'rgba(255,90,80,0.35)';
-      mc.fillRect((i % W) * s, Math.floor(i / W) * s, s, s);
-    }
-    for (const d of R.deposits) {
-      if (d.amount <= 0) continue;
-      mc.fillStyle = '#ffb36a';
-      mc.fillRect(Math.floor(d.x) * s, Math.floor(d.y) * s, s, s);
-    }
-    for (const st of R.structures) {
-      if (!st.alive) continue;
-      mc.fillStyle = st.team === 0 ? '#9cc8ff' : st.team === 1 ? '#ffa49a' : st.struct === 'nest' ? '#2a1a1a' : '#ffe28a';
-      mc.fillRect(st.fp.x0 * s, st.fp.y0 * s, st.fp.w * s, st.fp.h * s);
-    }
-    for (const e of R.entities) {
-      if (!e.alive || e.kind === 'critter' || e.struct || e.kind === 'pet') continue;
-      if (e.kind === 'pickup') {
-        mc.fillStyle = e.type === 'relic' ? '#ff3a2a' : '#ffffff';
-        mc.fillRect(Math.floor(e.x * s) - 1, Math.floor(e.y * s) - 1, 3, 3);
-        continue;
-      }
-      if (e.kind === 'building') continue;
-      if (e.team === 1 && e.status?.invisible > 0) continue;
-      mc.fillStyle = e.kind === 'hero' ? (e.team === 0 ? '#ffffff' : '#ffe14a') : e.team === 0 ? TEAM_COL[0] : e.team === 1 ? TEAM_COL[1] : '#3a2a2a';
-      const sz = e.kind === 'hero' ? 3 : e.kind === 'villager' ? 1 : 2;
-      mc.fillRect(Math.floor(e.x * s - sz / 2), Math.floor(e.y * s - sz / 2), sz, sz);
-    }
-    // alert pings
-    const now = this.t;
-    this.pings = (this.pings || []).filter((p) => now - p.t < 3);
-    for (const p of this.pings) {
-      const k = ((now - p.t) % 1);
-      mc.strokeStyle = `rgba(255,70,60,${1 - k})`;
-      mc.lineWidth = 1.5;
-      mc.beginPath();
-      mc.arc(p.x * s, p.y * s, 2 + k * 8, 0, Math.PI * 2);
-      mc.stroke();
-    }
-    // camera box
     const z = this.cam.zoom;
-    const vw = (this.layout.cssW / z / TILE) * s;
-    const vh = (this.layout.cssH / z / TILE) * s;
-    mc.strokeStyle = 'rgba(255,255,255,0.9)';
-    mc.lineWidth = 1;
-    mc.strokeRect(Math.round(this.cam.x * s - vw / 2) + 0.5, Math.round(this.cam.y * s - vh / 2) + 0.5, Math.round(vw), Math.round(vh));
-    void TEAM_DARK;
-    void TEAM_LIGHT;
-    void WILD;
-    void drawSprite;
-    void drawHero;
+    const vw = this.layout.cssW / z / TILE / 2;
+    const vh = this.layout.cssH / z / TILE / 2;
+    const { x, y } = this.cam;
+    this.minimap.draw(mc, s, this.t, [{ x: x - vw, y: y - vh }, { x: x + vw, y: y - vh }, { x: x + vw, y: y + vh }, { x: x - vw, y: y + vh }]);
   }
+
+  /** Tile offset for a finger drag of (dx, dy) css px. */
+  panDelta(dx, dy) {
+    const k = 1 / (this.cam.zoom * TILE);
+    return { x: -dx * k, y: -dy * k };
+  }
+
+  dispose() {}
 }
 
 function hasSprite(key) {
@@ -746,29 +681,13 @@ function safeH(key) {
   }
 }
 
-const colorCache = new Map();
-function safeColor(type, biome) {
-  const k = `${biome}|${type}`;
-  let c = colorCache.get(k);
-  if (!c) {
-    try {
-      c = realmTileColor(type, biome);
-    } catch {
-      c = null;
-    }
-    if (!c || !/^#[0-9a-f]{6}$/i.test(c)) c = ['#123a6b', '#2e6fb0', '#e6d39a', '#4f9a3e', '#2f6b2a', '#7a9a4e', '#6b6370', '#4a4040', '#e8eef5', '#ff6a1e', '#5f5a3a', '#9a6bff', '#b08a5a'][type] || '#444';
-    colorCache.set(k, c);
-  }
-  return c;
-}
-
 function fallbackMap(R) {
   const cv = document.createElement('canvas');
   cv.width = R.W * TILE;
   cv.height = R.H * TILE;
   const c = cv.getContext('2d');
   for (let i = 0; i < R.tiles.length; i++) {
-    c.fillStyle = safeColor(R.tiles[i], R.arena?.biome || 'meadow');
+    c.fillStyle = tileColor(R.tiles[i], R.arena?.biome || 'meadow');
     c.fillRect((i % R.W) * TILE, Math.floor(i / R.W) * TILE, TILE, TILE);
   }
   return cv;

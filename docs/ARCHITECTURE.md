@@ -16,8 +16,12 @@ No trademarked names, characters or art from other games are used. Everything is
 
 ## Tech rules (all modules)
 
-- Plain JavaScript ES2022 modules, no runtime dependencies, no frameworks. JSDoc for public functions.
-- Canvas 2D for game worlds (`imageSmoothingEnabled = false`), HTML/CSS for menus and HUD.
+- Plain JavaScript ES2022 modules, no frameworks. The only runtime dependency is three.js (MIT), used by the 3D island
+  view. It is imported through `src/vendor/three.js` (a relative re-export of `node_modules/three`) and bundled by
+  esbuild. JSDoc for public functions.
+- Realm Clash renders in WebGL through three.js: a 3D brick world with pixel sprites. It falls back to Canvas 2D when
+  WebGL is missing or the player turns 3D off. Arena Duel and God Box use Canvas 2D (`imageSmoothingEnabled = false`).
+  Menus and the HUD are HTML/CSS.
 - Must run in: iOS Safari 16+, iOS home-screen web app, Capacitor iOS WebView, desktop Chrome/Safari/Firefox,
   and inside a sandboxed iframe (Claude Artifact) where service workers, `alert/confirm/prompt`, downloads
   and `window.open` do not work. Never call `alert/confirm/prompt`.
@@ -37,7 +41,9 @@ src/data/                  cards.js, heroes.js, weapons.js, gadgets.js, pets.js,
 src/art/                   palette.js, sprites.js, sprite-cache.js, tiles.js, realm-tiles.js, icons.js (art agent)
 src/battle/                shared combat engine (damage, effects, projectiles, spells, troops, hero) + the Arena Duel lane mode
 src/realm/                 Tiny Gods: realm.js (Realm extends Battle), worldgen, grid (A*, territory), village (villagers),
-                           realm-ai (rival god), horde (Horde Nights), realm-tutorial, realm-render (camera, night, minimap)
+                           realm-ai (rival god), horde (Horde Nights), realm-tutorial, realm-render (2D view), minimap
+src/realm3d/               render3d.js (the 3D brick-world view) + models.js (procedural LEGO-style models, 3D art agent)
+src/vendor/three.js        relative re-export of three.js
 src/ui/                    styles.css + screens (home, realm-screen, battle-screen, cards, hero, shop, lucky drop, skin editor)
 src/sandbox/               godbox.js (+ helpers) — the God Box sandbox mode (sandbox agent)
 assets/fonts/              Press Start 2P + Pixelify Sans (OFL) + licenses
@@ -165,6 +171,30 @@ Music themes: menu, meadow, desert, frost, swamp, crystal, lava, candy, void, go
   `relic`, `shrine`, `raid`, `disaster`, `stance`, `crown`, `heroDeath`, `villagerBorn`, `coach`, `end`.
 - `realm-tiles.js` renders the terrain (`renderRealmMap`, `renderRealmTile`, `drawRealmWater`, `drawTerritory`,
   `realmTileColor`). Tile ids `REALM_TILES` must equal `T` in `src/realm/constants.js`.
+
+## 3D view contract (src/realm3d/*)
+
+- `Realm3DRenderer(realm, glCanvas, hudCanvas)` has the same interface as the 2D `RealmRenderer`: `resize`,
+  `setZoomTiles`, `cam {x, y}`, `toWorld`, `toCss`, `panDelta`, `draw(ui, dt)`, `drawMinimap`, `ping` and `dispose`.
+- World units are tiles, with x → X, y → Z and height → Y. The camera is pitched about 56°, looks north, and follows
+  `cam`.
+- **Terrain:** one textured top per tile at a per-type height, plus sides where neighbours are lower. The texture is
+  the 2D island map from `renderRealmMap`, plus a strip of side textures. A shader adds territory tints, dashed
+  borders and a ground-effects overlay. The overlay is a small 2D canvas drawn with the flat renderer's code: fire,
+  spell areas, rings, warnings, summon zones, ghosts and markers.
+- **Scenery and buildings:**
+  - Water and lava are animated planes.
+  - Trees, rocks and crystals are InstancedMesh. Trees hide when their tile burns and return when it regrows.
+  - Buildings are LEGO-style models on team-coloured baseplates. Scaffolds have 3 stages.
+- **Units and effects:**
+  - Units, heroes, pets, villagers, pickups and projectiles are pixel-sprite billboards (HD-2D) with blob shadows.
+  - Particles are one `THREE.Points` draw.
+  - Bars, damage numbers, beams, bolts, emotes and stun stars go on the HUD canvas in screen space.
+- **Night:** hemisphere and sun light dim and turn blue. Up to 5 torch point lights follow the light sources nearest
+  the camera.
+- `models.js` (3D art agent): `structureModel(id, team)`, `scaffoldModel(w, h, progress)`, `depositModel(rich)`,
+  `cardBuildingModel(cardId, team)`, `treeGeometry(biome, variant)`, `rockGeometry(biome, variant)`,
+  `crystalGeometry(variant)`. Units are tiles, the origin is the footprint centre at ground level, and fronts face +z.
 
 ## God Box contract (src/sandbox/godbox.js) — sandbox agent
 

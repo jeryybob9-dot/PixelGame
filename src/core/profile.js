@@ -57,7 +57,7 @@ function defaultProfile() {
     trophyRoad: [],
     shop: { day: '', deals: [], bought: [] },
     freeGiftAt: 0,
-    settings: { music: 0.55, sfx: 0.85, muted: false, dmgNumbers: true, particles: 'high', haptics: true, leftHanded: false },
+    settings: { music: 0.55, sfx: 0.85, muted: false, dmgNumbers: true, particles: 'high', haptics: true, leftHanded: false, graphics: '3d' },
     tutorialDone: false,
     lastArenaSeen: 0,
   };

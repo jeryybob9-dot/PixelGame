@@ -5,6 +5,7 @@ import { el, clear, fmtTime, clamp, dist2, haptic } from '../core/util.js';
 import { createRng } from '../core/rng.js';
 import { Realm, STEP } from '../realm/realm.js';
 import { RealmRenderer } from '../realm/realm-render.js';
+import { Realm3DRenderer, webglAvailable } from '../realm3d/render3d.js';
 import { RealmAI } from '../realm/realm-ai.js';
 import { HordeDirector } from '../realm/horde.js';
 import { RealmTutorial } from '../realm/realm-tutorial.js';
@@ -73,14 +74,16 @@ export const realmScreen = {
     const minimap = el('canvas.r-minimap', { width: R.W * 2, height: R.H * 2, 'aria-label': 'Minimap' });
     const followBtn = el('button.r-follow', { type: 'button', hidden: true }, 'Back to hero');
 
-    const canvas = el('canvas.r-canvas');
+    const use3d = profile.settings.graphics !== '2d' && webglAvailable();
+    let canvas = el('canvas.r-canvas');
+    const hudCanvas = use3d ? el('canvas.r-hud') : null;
     const banner = el('div.b-banner.r-banner');
     const coach = el('div.b-coach', { hidden: true });
     const popover = el('div.b-popover', { hidden: true });
     const joyBase = el('div.r-joy', { hidden: true }, el('div.r-joy-knob'));
     const feed = el('div.r-feed');
     const nightTag = el('div.r-night', { hidden: true }, 'NIGHT');
-    const mapWrap = el('div.r-map', null, canvas, joyBase, banner, coach, popover, feed, nightTag, chips, minimap, followBtn);
+    const mapWrap = el('div.r-map', null, canvas, hudCanvas, joyBase, banner, coach, popover, feed, nightTag, chips, minimap, followBtn);
 
     // hero cluster (right) and village buttons (left)
     const heroDef = HEROES[me.heroId];
@@ -131,12 +134,23 @@ export const realmScreen = {
     if (!enemy) domBar.hidden = true;
     root.appendChild(screen);
 
-    const renderer = new RealmRenderer(R, canvas);
+    let renderer;
+    try {
+      renderer = use3d ? new Realm3DRenderer(R, canvas, hudCanvas) : new RealmRenderer(R, canvas);
+    } catch (err) {
+      console.warn('3D view unavailable, using 2D', err);
+      hudCanvas?.remove();
+      // a canvas that already handed out a WebGL context cannot give a 2D one
+      const fresh = el('canvas.r-canvas');
+      canvas.replaceWith(fresh);
+      canvas = fresh;
+      renderer = new RealmRenderer(R, canvas);
+    }
     if (globalThis.__BBR) {
       globalThis.__BBR.realm = R;
       globalThis.__BBR.realmRenderer = renderer;
     }
-    let zoomTiles = clamp(profile.settings.realmZoom || 13, 8, 26);
+    let zoomTiles = clamp(profile.settings.realmZoom || (use3d ? 14 : 13), 8, 26);
     const fit = () => {
       const r = mapWrap.getBoundingClientRect();
       renderer.resize(Math.max(100, r.width), Math.max(100, r.height));
@@ -301,7 +315,7 @@ export const realmScreen = {
         return;
       }
       // left side: floating joystick
-      if (l.x < l.w * 0.55 && R.phase === 'play') {
+      if (l.x < l.w * 0.55 && R.phase !== 'ended') {
         joy = { id: ev.pointerId, ox: l.x, oy: l.y };
         joyBase.hidden = false;
         joyBase.style.left = `${l.x}px`;
@@ -352,8 +366,9 @@ export const realmScreen = {
         if (pan.moved && !(buildMode && pan.ghost)) {
           cam.free = true;
           followBtn.hidden = false;
-          renderer.cam.x = pan.cx - dx / renderer.cam.zoom / 16;
-          renderer.cam.y = pan.cy - dy / renderer.cam.zoom / 16;
+          const d = renderer.panDelta(dx, dy);
+          renderer.cam.x = pan.cx + d.x;
+          renderer.cam.y = pan.cy + d.y;
           cam.tx = renderer.cam.x;
           cam.ty = renderer.cam.y;
         }
@@ -699,7 +714,8 @@ export const realmScreen = {
     const showBanner = (text, kind = '', sub = '') => {
       banner.className = `b-banner r-banner show ${kind}`;
       clear(banner);
-      banner.append(el('span', { text }), sub ? el('small', { text: sub }) : null);
+      banner.append(el('span', { text }));
+      if (sub) banner.append(el('small', { text: sub }));
       clearTimeout(showBanner.t);
       showBanner.t = setTimeout(() => (banner.className = 'b-banner r-banner'), kind === 'count' ? 700 : 2200);
     };
@@ -1046,6 +1062,7 @@ export const realmScreen = {
 
     return () => {
       cancelAnimationFrame(raf);
+      renderer.dispose?.();
       ro.disconnect();
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keyup', onKey);
