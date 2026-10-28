@@ -744,8 +744,8 @@ if (vTop > 0.5) {
     const night = new THREE.Color(0x4a5aa8);
     this.hemi.color.copy(day).lerp(night, k);
     this.hemi.groundColor.set(0x5a4a3a).lerp(new THREE.Color(0x141428), k);
-    this.hemi.intensity = 1.15 - k * 0.68;
-    this.sun.intensity = 1.5 - k * 1.3;
+    this.hemi.intensity = 1.15 - k * 0.58;
+    this.sun.intensity = 1.5 - k * 1.2;
     this.sun.color.set(chaos ? 0xffd6e8 : 0xfff1d6).lerp(new THREE.Color(0x8aa0ff), k);
     const fogDay = new THREE.Color(chaos ? 0xb8a0d8 : 0xa8d0e8);
     const fogNight = new THREE.Color(0x0c1230);
@@ -1650,7 +1650,7 @@ function safeModel(fn) {
 
 let scenMat = null;
 function sceneryMaterial() {
-  if (!scenMat) scenMat = Models.MODEL_MATERIALS?.lambert || new THREE.MeshLambertMaterial({ vertexColors: true });
+  if (!scenMat) scenMat = Models.MODEL_MATERIALS?.solid || new THREE.MeshLambertMaterial({ vertexColors: true });
   return scenMat;
 }
 

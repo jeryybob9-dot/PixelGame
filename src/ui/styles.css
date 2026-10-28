@@ -751,3 +751,5 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .realm .b-coach.fade { opacity: 0; transform: translateY(10px); }
 .realm .b-coach { animation: fade-in 0.25s; }
 .r-hud { position: absolute; left: 0; top: 0; display: block; pointer-events: none; z-index: 1; }
+.r-age.night { background: rgba(14, 18, 60, 0.85); box-shadow: inset 0 0 0 2px #6f7fd8, 0 0 10px rgba(111, 127, 216, 0.5); }
+.r-age.night .r-age-name::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; box-shadow: inset -2px -1px 0 #e8eeff; vertical-align: 0; }

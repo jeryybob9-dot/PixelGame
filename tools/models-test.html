@@ -59,7 +59,7 @@ scene.add(grid);
 
 const labels = [];
 function label(text, x, z, y = -0.05) {
-  if (q.get('labels') === '0') return;
+  if (q.get('labels') === '0' || (innerWidth < 600 && q.get('labels') !== '1')) return;
   const el = document.createElement('div');
   el.className = 'lbl';
   el.textContent = text;
@@ -98,7 +98,43 @@ const only = q.get('only');
 let target = new THREE.Vector3(0, 0, 0);
 let dist = 30;
 
-if (only) {
+function village() {
+  // a little game-like scene at realistic spacing (one tile = one unit)
+  const G = (x, z, w, h, c = '#6cb553') => tile(x, z, w, h, c);
+  G(0, -2, 26, 30);
+  const S = (id, team, x, z) => place(structureModel(id, team), x, z, `${id}/${team}`);
+  S('keep', 0, 0, 7.5);
+  S('house', 0, -3.5, 5);
+  S('house', 0, 3.5, 5.5);
+  S('barracks', 0, -3.5, 9.5);
+  S('tower', 0, 4, 9);
+  S('temple', 0, 0, 3);
+  for (let x = -2; x <= 2; x++) S('wall', 0, x, 11);
+  S('outpost', 0, 6, 2);
+  S('shrine', null, 0, -1.5);
+  S('nest', null, -5, -3);
+  S('tower', 1, 0.5, -8);
+  S('house', 1, 3.5, -9);
+  S('house', 1, -3, -10);
+  S('outpost', 1, -5, -6.5);
+  place(scaffoldModel(2, 2, 0.34), -3.5, 1.5);
+  place(scaffoldModel(2, 2, 0.67), 3.5, -5.5);
+  place(depositModel(false), -6, 1);
+  place(depositModel(true), 6, -2);
+  place(depositModel(false), 5.2, -1.2);
+  place(cardBuildingModel('tesla', 0), 2.5, 0.5);
+  place(cardBuildingModel('cannon', 1), -2, -6);
+  place(cardBuildingModel('mine', 0), -6, 4);
+  const trees = [[-8, -2], [-7.2, -1.3], [-8.3, -0.2], [-7, 0.2], [7.5, 5], [8.2, 6], [7.6, 7.2], [-7.8, 8], [-8.4, 9.1], [6.5, -7], [7.4, -8], [-6.5, -9], [8, 1]];
+  trees.forEach(([x, z], i) => placeGeo(treeGeometry(q.get('biome') ?? 'meadow', i % 3), x, z));
+  for (const [x, z, v] of [[-7, -6, 2], [-8, -6, 1], [-7, -7, 1], [-8, -7, 0], [-6, -7, 0], [8, -4, 2], [8, -3, 0]]) placeGeo(rockGeometry(q.get('biome') ?? 'meadow', v), x, z);
+}
+
+if (q.get('section') === 'village') {
+  village();
+  target.set(0, 0, 1);
+  dist = 44;
+} else if (only) {
   const teams = q.has('team') ? [q.get('team') === 'n' ? null : +q.get('team')] : [0, 1, null];
   teams.forEach((t, i) => {
     const x = (i - (teams.length - 1) / 2) * 4;
@@ -175,7 +211,9 @@ if (only) {
   };
   const [cx, cz, d] = presets[sec] ?? presets.all;
   target.set(cx, 0, cz);
-  dist = d;
+  // fit the ~38-tile-wide layout horizontally on narrow (portrait) screens
+  const aspect = innerWidth / innerHeight;
+  dist = sec === 'all' ? Math.max(d, 40 / (2 * Math.tan((num('fov', 30) * Math.PI) / 360) * aspect)) : d;
 }
 target.set(num('cx', target.x), 0, num('cz', target.z));
 dist = num('dist', dist);

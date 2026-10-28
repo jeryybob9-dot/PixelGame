@@ -82,8 +82,7 @@ export const realmScreen = {
     const popover = el('div.b-popover', { hidden: true });
     const joyBase = el('div.r-joy', { hidden: true }, el('div.r-joy-knob'));
     const feed = el('div.r-feed');
-    const nightTag = el('div.r-night', { hidden: true }, 'NIGHT');
-    const mapWrap = el('div.r-map', null, canvas, hudCanvas, joyBase, banner, coach, popover, feed, nightTag, chips, minimap, followBtn);
+    const mapWrap = el('div.r-map', null, canvas, hudCanvas, joyBase, banner, coach, popover, feed, chips, minimap, followBtn);
 
     // hero cluster (right) and village buttons (left)
     const heroDef = HEROES[me.heroId];
@@ -735,11 +734,11 @@ export const realmScreen = {
         haptic('medium');
       }),
       R.on('night', () => {
-        nightTag.hidden = false;
+        top.querySelector('.r-age')?.classList.add('night');
         if (mode !== 'horde') note('Night falls. Monster nests raid!', 'bad');
       }),
       R.on('day', () => {
-        nightTag.hidden = true;
+        top.querySelector('.r-age')?.classList.remove('night');
       }),
       R.on('crown', ({ team, tower }) => {
         if (tower.struct !== 'tower') return;
