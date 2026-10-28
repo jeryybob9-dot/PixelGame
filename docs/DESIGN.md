@@ -84,7 +84,29 @@ face an easy rival for their first two matches.
 - **Horde Nights**: your village alone on the island. Every night a bigger monster horde lands on the beaches, with
   a giant every 5th night. Survive as many nights as you can.
 - **God Box**: the free sandbox.
-- **Training**: a coached first match against a sleepy rival with a weaker castle.
+- **Training**: the guided first match (see below). It can be replayed from the Battle tab.
+
+## First-time experience
+
+Modelled on card-battler tutorials: a new player taps "Tap to Play" and lands straight in a guided match. Foreman Bo
+(a builder in a hard hat) explains one thing at a time in a speech bubble. Everything except the thing to touch is
+dimmed and blocked, a pixel hand shows the gesture (tap, drag a card to a glowing spot, or drag the joystick), and the
+match pauses while a new idea is introduced.
+
+1. **The goal:** the camera pans to the red castle, then your blue castle, then the health bars.
+2. **Hero:** walk with the joystick, beat two monsters, and blast a gang with POWER.
+3. **Economy:** bricks, villagers and the card prices.
+4. **Cards:** drag a Knight, see the NEXT card, follow the Knight across the river, watch the enemy defend, drop
+   Archers to stop the counter-attack, and Volley a group of skeletons.
+5. **Building:** BUILD, pick a House, tap the spot, confirm; Towers and Barracks are mentioned.
+6. **Finding your way:** the minimap, the enemy-castle arrow and the clock.
+7. **Your turn:** a Brick Rush starts and the player finishes the (weakened) red castle. If they stall, the hand
+   suggests a card.
+
+After the win, Bo opens the first Lucky Drop with the player (its first tap always upgrades it, and it holds enough
+Knights to level one up), asks for a name, and tours the menus with locked navigation: Realm and trophies, upgrade
+the Knight in Cards, the deck and collection, the Hero tab, the Shop's free gift and deals, Quests and the Trophy
+Road, the other modes, and finally the REALM CLASH button. A "Skip tutorial" button is always available.
 
 ## Meta (card-game layer)
 

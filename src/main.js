@@ -27,9 +27,11 @@ const titleScreen = {
       drawSprite(ctx, 'fireball', 70 + m * 40, -6 + m * 48, { t, scale: 1 });
       drawSprite(ctx, 'temple', 104, 22, { team: null, t, scale: 0.8 });
     });
+    // a brand-new player goes straight into the guided training match
     const go = () => {
       app.sfx('fight');
-      app.go('home');
+      if (getProfile().tutorialDone) app.go('home');
+      else app.go('realm', { mode: 'training' });
     };
     root.append(el('div.title', { onclick: go },
       el('div.title-bricks'),

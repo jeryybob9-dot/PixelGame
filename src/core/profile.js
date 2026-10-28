@@ -59,12 +59,15 @@ function defaultProfile() {
     freeGiftAt: 0,
     settings: { music: 0.55, sfx: 0.85, muted: false, dmgNumbers: true, particles: 'high', haptics: true, leftHanded: false, graphics: '3d' },
     tutorialDone: false,
+    tourDone: false,
     lastArenaSeen: 0,
   };
 }
 
 /** Fill any fields missing from older saves. */
 function migrate(p) {
+  // players from before the guided menu tour have already found their way around
+  if (p.tourDone === undefined && p.tutorialDone !== undefined) p.tourDone = !!p.tutorialDone;
   const d = defaultProfile();
   for (const k of Object.keys(d)) if (p[k] === undefined) p[k] = d[k];
   for (const k of Object.keys(d.stats)) if (p.stats[k] === undefined) p.stats[k] = 0;
@@ -538,6 +541,20 @@ export function buyDeal(key) {
   commit();
   return true;
 }
+// ───────────── tutorial ─────────────
+
+/** Mark the training match (and, with `tour`, the menu tour) as done. */
+export function finishTutorial(tour = false) {
+  profile.tutorialDone = true;
+  if (tour) profile.tourDone = true;
+  commit();
+}
+
+/** The first Lucky Drop is fixed: enough Knights to show an upgrade, and a few other starter cards. */
+export function tutorialDrop() {
+  return { tier: 0, gold: 120, gems: 10, cards: [{ id: 'knight', n: 4 }, { id: 'archers', n: 3 }, { id: 'skeletons', n: 4 }, { id: 'volley', n: 2 }], item: null };
+}
+
 export function freeGiftReadyIn() {
   return Math.max(0, profile.freeGiftAt + FREE_GIFT_HOURS * 3600e3 - Date.now());
 }

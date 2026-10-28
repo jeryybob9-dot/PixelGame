@@ -42,10 +42,11 @@ src/data/                  cards.js, heroes.js, weapons.js, gadgets.js, pets.js,
 src/art/                   palette.js, sprites.js, sprite-cache.js, tiles.js, realm-tiles.js, icons.js (art agent)
 src/battle/                shared combat engine (damage, effects, projectiles, spells, troops, hero) + the Arena Duel lane mode
 src/realm/                 Realm Clash: realm.js (Realm extends Battle), worldgen, grid (A*), village (villagers),
-                           realm-ai (rival god), horde (Horde Nights), realm-tutorial, realm-render (2D view), minimap
+                           realm-ai (rival god), horde (Horde Nights), realm-render (2D view), minimap
 src/realm3d/               render3d.js (the 3D brick-world view) + models.js (procedural LEGO-style models, 3D art agent)
 src/vendor/three.js        relative re-export of three.js
-src/ui/                    styles.css + screens (home, realm-screen, battle-screen, cards, hero, shop, lucky drop, skin editor)
+src/ui/                    styles.css + screens (home, realm-screen, battle-screen, cards, hero, shop, lucky drop, skin editor),
+                           guide.js (tutorial overlay), training.js (scripted first match), tour.js (first drop + menu tour)
 src/sandbox/               godbox.js (+ helpers) — the God Box sandbox mode (sandbox agent)
 assets/fonts/              Press Start 2P + Pixelify Sans (OFL) + licenses
 public/                    manifest.webmanifest, sw.js, icons/ (packaging agent)

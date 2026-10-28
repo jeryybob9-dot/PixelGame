@@ -9,11 +9,12 @@ import { HEROES } from '../data/heroes.js';
 import { rollDrop, applyDrop, getProfile } from '../core/profile.js';
 import { drawSprite } from '../art/sprite-cache.js';
 import { cardTile, icon, countUp, animatedCanvas } from './components.js';
+import { guideFirstDrop } from './tour.js';
 
 export const luckyScreen = {
   mount(root, app, params = {}) {
     let tier = params.tier || 0;
-    let taps = params.noUpgrade || params.drop ? 0 : DROP_TAPS;
+    let taps = params.tutorial ? DROP_TAPS : params.noUpgrade || params.drop ? 0 : DROP_TAPS;
     let phase = taps > 0 ? 'upgrade' : 'ready';
     let shake = 0;
     let flash = 0;
@@ -74,7 +75,9 @@ export const luckyScreen = {
         app.sfx('card_select', { pitch: 0.8 + tier * 0.1 });
         haptic('light');
         const canUp = tier < DROP_TIERS.length - 1;
-        if (canUp && Math.random() < DROP_UPGRADE_CHANCE[tier]) {
+        // the very first tap of the tutorial drop always upgrades it
+        const lucky = params.tutorial && taps === DROP_TAPS - 1;
+        if (canUp && (lucky || Math.random() < DROP_UPGRADE_CHANCE[tier])) {
           tier++;
           flash = 1;
           shake = 1.5;
@@ -135,7 +138,11 @@ export const luckyScreen = {
       }, 400 + items.length * 280);
     }
 
-    return () => chestCv.stop?.();
+    const stopGuide = params.tutorial ? guideFirstDrop(app, () => phase) : null;
+    return () => {
+      chestCv.stop?.();
+      stopGuide?.();
+    };
   },
 };
 

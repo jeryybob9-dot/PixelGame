@@ -15,6 +15,7 @@ import { cardsTab } from './cards-tab.js';
 import { heroTab } from './hero-tab.js';
 import { shopTab } from './shop-tab.js';
 import { openTrophyRoad } from './trophy-road.js';
+import { maybeStartTour } from './tour.js';
 
 const TABS = [
   { id: 'shop', label: 'Shop', icon: 'ui_gold' },
@@ -76,6 +77,7 @@ export const homeScreen = {
     const off = events.on('change', refreshTop);
     const tick = setInterval(refreshTop, 15000);
     setTab(tab);
+    maybeStartTour(app);
     return () => {
       off();
       clearInterval(tick);
@@ -127,12 +129,7 @@ const battleTab = {
 
     const battleBtn = el('button.btn.btn-battle', { type: 'button', onclick: () => {
       app.sfx('ui_click');
-      if (!getProfile().tutorialDone) {
-        app.confirm({ title: 'New here?', text: 'Play a guided first match? It shows you how to win in about 2 minutes.', yes: 'Training', no: 'Skip' })
-          .then((y) => app.go('realm', { mode: y ? 'training' : 'clash' }));
-        return;
-      }
-      app.go('realm', { mode: 'clash' });
+      app.go('realm', { mode: getProfile().tutorialDone ? 'clash' : 'training' });
     } }, el('span.bb-label', { text: 'REALM CLASH' }), el('small', { text: `Destroy ${arena.ai.name}'s castle!` }));
 
     const modes = el('div.mode-grid.three', null,

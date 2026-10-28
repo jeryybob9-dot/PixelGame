@@ -54,10 +54,10 @@ export const cardsTab = {
       // hint: deck roles
       const roles = new Set(deck.flatMap((id) => CARDS[id].roles));
       const tips = [];
-      if (!deck.some((id) => CARDS[id].roles.includes('win'))) tips.push('Add a win condition (Stone Giant, Boar Rider…) to take towers.');
+      if (!deck.some((id) => CARDS[id].roles.includes('win'))) tips.push('Add a big hitter (Stone Giant, Boar Rider…) to knock down castles.');
       if (!deck.some((id) => CARDS[id].roles.includes('air') || CARDS[id].unit?.targets === 'both' || CARDS[id].building?.targets === 'both')) tips.push('Nothing hits air! Add Archers, Blaster Goblins or a Brick Tower.');
-      if (!roles.has('spell_small') && !roles.has('spell_big')) tips.push('A god-power spell helps finish towers and swarms.');
-      if (!roles.has('builder') && !roles.has('economy')) tips.push('Builders mine bricks for hero forms and tower elements.');
+      if (!roles.has('spell_small') && !roles.has('spell_big')) tips.push('A spell helps against groups of enemies.');
+      if (!roles.has('builder') && !roles.has('economy')) tips.push('Builders bring extra villagers, and villagers mine more bricks.');
       if (tips.length) view.append(el('div.deck-tips', null, ...tips.map((t) => el('p', { text: t }))));
 
       // collection
@@ -124,7 +124,7 @@ export function openCard(app, id, onChange, onUse) {
       onUse(id);
     } }, 'Use'));
     if (owned && info && !info.maxed) {
-      const btn = el(`button.btn${info.ready && info.affordable ? '.btn-gold' : '.btn-ghost'}`, { type: 'button', onclick: () => {
+      const btn = el(`button.btn.cd-upgrade${info.ready && info.affordable ? '.btn-gold' : '.btn-ghost'}`, { type: 'button', onclick: () => {
         const res = upgradeCard(id);
         if (!res.ok) {
           app.toast(res.reason, 'bad');

@@ -42,6 +42,7 @@ export function cardTile(cardId, o = {}) {
   const tile = el(`button.card-tile.r-${c.rarity}${o.small ? '.small' : ''}${o.locked ? '.locked' : ''}${o.selected ? '.selected' : ''}`, {
     type: 'button',
     'aria-label': `${c.name}, ${r.name}, costs ${c.cost * 10} bricks`,
+    dataset: { card: cardId },
     onclick: o.onClick,
   },
   el('div.card-frame', null,

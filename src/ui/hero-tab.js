@@ -1,7 +1,7 @@
 // Hero tab: heroes, armory (weapons), gadgets and pets.
 
 import { el, clear, fmtNum } from '../core/util.js';
-import { HEROES, HERO_IDS, ELEMENTS, FORM_NAMES, FORM_COST } from '../data/heroes.js';
+import { HEROES, HERO_IDS, ELEMENTS } from '../data/heroes.js';
 import { WEAPONS, WEAPON_IDS, WEAPON_CATEGORIES, weaponBars, weaponTags, WEAPON_MAX_LEVEL } from '../data/weapons.js';
 import { GADGETS, PETS } from '../data/gadgets.js';
 import { RARITY_INFO } from '../data/cards.js';
@@ -79,11 +79,12 @@ export const heroTab = {
       }
       view.append(
         el('section.hero-show', { style: { '--ec': el2.color } },
-          el('div.hero-stage', null, stage, el('div.form-labels', null, ...FORM_NAMES.map((n, i) => el('span', { text: i === 0 ? n : `${n} (${FORM_COST[i]})` })))),
+          el('div.hero-stage', null, stage, el('div.form-labels', null, ...['Level 1', 'Level 2', 'Level 3'].map((n) => el('span', { text: n })))),
           el('div.hero-title', null, el('h2', { text: h.name }), el('span.elem-tag', null, icon(h.element === 'shadow' ? 'skeleton' : `elem_${h.element}`, '', 2), el2.name)),
           el('p.hero-sub', { text: h.title }),
           el('div.hero-passive', null, el('b', { text: 'Passive: ' }), h.passive.text),
-          ...h.spells.map((s) => el('div.hero-spell', null, el('span.spell-form', { text: `Form ${s.form}` }), el('div', null, el('b', { text: s.name }), el('small', { text: ` · ${s.cd}s cooldown` }), el('p', { text: s.text })))),
+          el('p.hero-levels', { text: 'Your hero levels up by fighting during a match. Level 2 is tougher; level 3 upgrades POWER.' }),
+          ...h.spells.map((s, i) => el('div.hero-spell', null, el('span.spell-form', { text: i === 0 ? 'POWER' : 'LV 3 POWER' }), el('div', null, el('b', { text: s.name }), el('small', { text: ` · ${s.cd}s cooldown` }), el('p', { text: s.text })))),
           actions),
         el('div.hero-pick', null, ...HERO_IDS.map((id) => {
           const hh = HEROES[id];

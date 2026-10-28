@@ -62,7 +62,12 @@ The full design is in [`docs/DESIGN.md`](docs/DESIGN.md).
   giant every 5th night.
 - **God Box:** a full sandbox world. Paint terrain, spawn four tribes, watch villages grow into warring kingdoms,
   and unleash meteors, plagues, black holes and atomic bombs.
-- **Training:** a coached first match.
+- **Training:** the guided first match, which can be replayed any time.
+
+**A guided start.** New players go straight into a guided match. A builder called Foreman Bo explains one thing at a
+time, dims everything except the button to press, and shows the gesture with a pointing hand. Afterwards he opens the
+first reward with you and tours the menus: upgrade a card, the hero, the shop's free gift, quests, then your first
+real match.
 
 **Built for iPhone.** Touch-first controls, pinch zoom, a minimap, safe-area awareness, haptics in the native app, an
 offline home-screen web app, and synthesized chiptune music and sound effects (no audio files).

@@ -772,7 +772,9 @@ export class Realm extends Battle {
       if (this.countdown <= 0) {
         this.phase = 'play';
         this.emit('start', {});
-        if (this.horde) this.emit('banner', { text: 'SURVIVE THE NIGHTS!', sub: 'Build by day. Monsters come at night', kind: 'fight' });
+        if (this.quietStart) {
+          /* training explains the goal itself */
+        } else if (this.horde) this.emit('banner', { text: 'SURVIVE THE NIGHTS!', sub: 'Build by day. Monsters come at night', kind: 'fight' });
         else this.emit('banner', { text: 'DESTROY THE RED CASTLE!', sub: 'Protect your blue castle', kind: 'fight' });
         this.sfx('fight');
       }
@@ -1051,6 +1053,7 @@ export class Realm extends Battle {
   }
 
   tickClock(dt) {
+    if (this.clockFrozen) return; // training
     this.clock -= dt;
     if (this.horde) {
       // Horde Nights runs its own day and night

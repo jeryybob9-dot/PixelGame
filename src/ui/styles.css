@@ -785,3 +785,41 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
 .realm .b-coach { top: auto; bottom: 10px; left: 8px; right: 8px; width: auto; max-width: none; transform: none; z-index: 4; pointer-events: none; }
 .realm .b-coach.fade { opacity: 0; transform: translateY(10px); }
 .realm .b-coach { animation: fade-in 0.25s; }
+
+/* ───────────── guided tutorial (Foreman Bo) ───────────── */
+.gd { position: absolute; inset: 0; z-index: 80; pointer-events: none; overflow: hidden; }
+.gd-dim { position: absolute; left: 0; top: 0; pointer-events: none; }
+.gd-dim path { fill: rgba(6, 4, 16, 0.68); }
+.gd-blockers, .gd-rings { position: absolute; inset: 0; pointer-events: none; }
+.gd-block { position: absolute; left: 0; top: 0; pointer-events: auto; touch-action: none; }
+.gd-ring { position: absolute; left: 0; top: 0; border-radius: 12px; box-shadow: 0 0 0 3px var(--gold), 0 0 16px 2px rgba(255, 210, 90, 0.75); animation: gd-pulse 1.1s ease-in-out infinite; }
+@keyframes gd-pulse { 50% { box-shadow: 0 0 0 4px #fff3b0, 0 0 26px 6px rgba(255, 210, 90, 0.9); } }
+.gd-hand { position: absolute; left: 0; top: 0; pointer-events: none; filter: drop-shadow(2px 4px 0 rgba(0, 0, 0, 0.45)); will-change: transform; z-index: 2; }
+.gd-hand-art { position: relative; display: block; image-rendering: pixelated; }
+.gd-ghost { position: absolute; left: -12px; top: -46px; width: 46px; height: 56px; object-fit: contain; image-rendering: pixelated; border-radius: 6px; background: rgba(40, 30, 80, 0.85); box-shadow: 0 0 0 2px #fff; opacity: 0.9; }
+.gd-ripple { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.gd-ripple::before { content: ''; position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border-radius: 50%; border: 3px solid #fff; opacity: 0; animation: gd-ripple 1.1s ease-out infinite; }
+@keyframes gd-ripple { 0%, 40% { transform: scale(0.3); opacity: 0; } 45% { opacity: 0.9; } 100% { transform: scale(1.4); opacity: 0; } }
+.gd-joy { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.gd-joy::before { content: ''; position: absolute; left: -46px; top: -46px; width: 92px; height: 92px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5); }
+.gd-bubble {
+  position: absolute; left: 10px; right: 10px; bottom: calc(var(--safe-b) + 12px); max-width: 500px; margin: 0 auto;
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px;
+  background: #fff8e6; color: #2a1d10; box-shadow: 0 0 0 3px #2a1d10, 0 6px 0 rgba(0, 0, 0, 0.35);
+  pointer-events: auto; animation: gd-in 0.25s ease-out; z-index: 3;
+}
+.gd-bubble.top { bottom: auto; top: calc(var(--safe-t) + 12px); }
+.gd-bubble.mid { bottom: auto; top: 36%; }
+@keyframes gd-in { from { transform: translateY(10px) scale(0.96); opacity: 0; } }
+.gd-face { flex: none; width: 60px; height: 66px; border-radius: 10px; background: linear-gradient(#ffd98a, #f0a24a); box-shadow: inset 0 0 0 2px #2a1d10; display: grid; place-items: center; overflow: hidden; }
+.gd-face canvas { image-rendering: pixelated; }
+.gd-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.gd-name { font-family: var(--font-display); font-size: 8px; color: #b35a1f; }
+.gd-text { margin: 0; font-size: 16px; line-height: 1.3; font-weight: 700; min-height: 2.6em; }
+.gd-next { align-self: flex-end; font-family: var(--font-display); font-size: 7px; color: #b35a1f; animation: pulse 1s infinite; }
+.gd-skip { position: absolute; right: 6px; top: -30px; padding: 5px 9px; border: 0; border-radius: 6px; background: rgba(10, 8, 24, 0.8); color: var(--ink-dim); font-size: 12px; pointer-events: auto; }
+.gd-bubble.top .gd-skip { top: auto; bottom: -30px; }
+.name-pick { display: flex; flex-direction: column; gap: 10px; }
+.name-pick p { margin: 0; color: var(--ink-dim); }
+.hero-levels { margin: 0; color: var(--ink-dim); font-size: 13px; line-height: 1.3; }
+.r-build-foot:has(.r-confirm:not([hidden])) .r-build-hint { display: none; }

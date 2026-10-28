@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   _internal, getProfile, upgradeCard, addCards, addGold, applyBattleResult, rollDrop, applyDrop, questList, claimQuest,
   setDeckCard, currentDeck, buyItem, equip, upgradeWeapon, trophyRoadState, claimTrophyRoad, ensureShop, buyDeal, xpForNextLevel,
+  tutorialDrop, finishTutorial, cardUpgradeInfo,
 } from '../src/core/profile.js';
 import { CARDS } from '../src/data/cards.js';
 
@@ -90,4 +91,29 @@ test('trophy road and shop', () => {
   addGold(100000);
   assert.ok(buyDeal(shop.deals[0].key));
   assert.ok(!buyDeal(shop.deals[0].key));
+});
+
+test('the first Lucky Drop sets up the card upgrade the menu tour shows', () => {
+  fresh();
+  assert.equal(getProfile().tutorialDone, false);
+  assert.equal(getProfile().tourDone, false);
+  applyBattleResult({ outcome: 'win', crowns: 3, enemyCrowns: 0, stats: {}, mode: 'tutorial' });
+  assert.equal(getProfile().tutorialDone, true);
+  applyDrop(tutorialDrop());
+  const info = cardUpgradeInfo('knight');
+  assert.ok(info.ready && info.affordable, 'knight should be ready to upgrade');
+  finishTutorial(true);
+  assert.equal(getProfile().tourDone, true);
+});
+
+test('players from before the menu tour skip it', () => {
+  const old = _internal.defaultProfile();
+  delete old.tourDone;
+  old.tutorialDone = true;
+  _internal.setProfile(old);
+  assert.equal(getProfile().tourDone, true);
+  const newer = _internal.defaultProfile();
+  delete newer.tourDone;
+  _internal.setProfile(newer);
+  assert.equal(getProfile().tourDone, false);
 });

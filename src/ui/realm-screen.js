@@ -9,7 +9,7 @@ import { RealmRenderer } from '../realm/realm-render.js';
 import { Realm3DRenderer, webglAvailable } from '../realm3d/render3d.js';
 import { RealmAI } from '../realm/realm-ai.js';
 import { HordeDirector } from '../realm/horde.js';
-import { RealmTutorial } from '../realm/realm-tutorial.js';
+import { TrainingCoach } from './training.js';
 import { STRUCTURES, BUILD_MENU, RUSH_AT, cardBricks } from '../realm/constants.js';
 import { spellReady } from '../battle/hero.js';
 import { CARDS } from '../data/cards.js';
@@ -17,7 +17,7 @@ import { ARENAS } from '../data/arenas.js';
 import { HEROES } from '../data/heroes.js';
 import { PETS } from '../data/gadgets.js';
 import { EMOTES } from '../data/emotes.js';
-import { getProfile, arenaIndex, applyBattleResult, setSetting } from '../core/profile.js';
+import { getProfile, arenaIndex, applyBattleResult, setSetting, finishTutorial, tutorialDrop } from '../core/profile.js';
 import { cardArtURL, icon, countUp } from './components.js';
 import { drawHero, drawSprite } from '../art/sprite-cache.js';
 import { playerSetup, enemySetup, SPELL_ICON } from './battle-screen.js';
@@ -44,6 +44,7 @@ export const realmScreen = {
   mount(root, app, params = {}) {
     const mode = params.mode || 'clash'; // clash | horde | training
     const profile = getProfile();
+    const firstTraining = mode === 'training' && !profile.tourDone;
     const arenaIdx = mode === 'training' ? 0 : mode === 'horde' ? Math.min(arenaIndex(), 3) : arenaIndex();
     const arena = ARENAS[arenaIdx];
     const seed = (Date.now() ^ (Math.random() * 1e9)) >>> 0;
@@ -53,14 +54,14 @@ export const realmScreen = {
     if (mode === 'clash') enemy = enemySetup(arenaIdx, rng);
     else if (mode === 'training') enemy = { ...enemySetup(0, rng), name: 'Sleepy Rival', petId: null, gadgetId: null, cardLevels: {} };
 
+    let trainingAI = null;
     const R = new Realm({ mode, arena, seed, players: [me, enemy], audio: app.audio, settings: { dmgNumbers: profile.settings.dmgNumbers, particles: profile.settings.particles } });
     if (mode === 'clash') {
       const easyStart = (profile.stats.realmBattles || 0) < 2;
       R.ai = [new RealmAI(R, 1, easyStart ? 'easy' : arena.ai.difficulty)];
     } else if (mode === 'training') {
-      const ai = new RealmAI(R, 1, 'tutorial');
-      R.ai = [ai];
-      R.tutorial = new RealmTutorial(R, ai);
+      trainingAI = new RealmAI(R, 1, 'tutorial');
+      R.ai = [trainingAI];
     } else if (mode === 'horde') {
       R.horde = new HordeDirector(R);
     }
@@ -68,11 +69,12 @@ export const realmScreen = {
 
     // ───────────── DOM: top ─────────────
     const clockEl = el('div.r-clock-time', { text: fmtTime(R.clock) });
-    const clockSub = el('div.r-clock-sub', { text: mode === 'horde' ? 'NIGHT 0' : 'TIME LEFT' });
+    const clockSub = el('div.r-clock-sub', { text: mode === 'horde' ? 'NIGHT 0' : mode === 'training' ? 'TRAINING' : 'TIME LEFT' });
     const pauseBtn = el('button.icon-btn.r-pause', { 'aria-label': 'Pause', type: 'button' }, el('span.pause-glyph'));
+    const clockBox = el('div.r-clock', null, clockEl, clockSub);
     const top = el('div.r-top', null,
       el('div.r-enemy', null, enemy ? el('span.lvl-badge.red', { text: String(enemy.kingLevel) }) : null, el('span', { text: enemy ? enemy.name : `Horde · ${arena.name}` })),
-      el('div.r-clock', null, clockEl, clockSub),
+      clockBox,
       pauseBtn);
     const castleBar = (team, label) => {
       const fill = el('div.r-cb-fill');
@@ -93,11 +95,10 @@ export const realmScreen = {
     let canvas = el('canvas.r-canvas');
     const hudCanvas = use3d ? el('canvas.r-hud') : null;
     const banner = el('div.b-banner.r-banner');
-    const coach = el('div.b-coach', { hidden: true });
     const joyBase = el('div.r-joy', { hidden: true }, el('div.r-joy-knob'));
     const feed = el('div.r-feed');
     const goalArrow = el('div.r-goal', { hidden: true }, el('div.r-goal-arrow'), castleIcon(1), el('span', { text: 'ENEMY' }));
-    const mapWrap = el('div.r-map', null, canvas, hudCanvas, joyBase, goalArrow, banner, coach, feed, chips, minimap, followBtn);
+    const mapWrap = el('div.r-map', null, canvas, hudCanvas, joyBase, goalArrow, banner, feed, chips, minimap, followBtn);
 
     // ───────────── DOM: bottom ─────────────
     const heroDef = HEROES[me.heroId];
@@ -649,7 +650,6 @@ export const realmScreen = {
     };
 
     // ───────────── events → HUD ─────────────
-    let coachTimer = 0;
     const showBanner = (text, kind = '', sub = '') => {
       banner.className = `b-banner r-banner show ${kind}`;
       clear(banner);
@@ -693,20 +693,77 @@ export const realmScreen = {
         }
       }),
       R.on('heroDeath', ({ team }) => note(team === 0 ? 'Your hero fell. Back in 5 seconds' : 'Enemy hero defeated! +40 bricks', team === 0 ? 'bad' : 'good')),
-      R.on('coach', (c) => {
-        coach.hidden = !c;
-        document.querySelectorAll('.coach-focus').forEach((n) => n.classList.remove('coach-focus'));
-        if (!c) return;
-        clear(coach);
-        coach.classList.remove('fade');
-        coach.append(el('div.coach-step', { text: `Step ${c.step + 1} of ${c.total}` }), el('p', { text: c.text }));
-        clearTimeout(coachTimer);
-        coachTimer = setTimeout(() => coach.classList.add('fade'), 12000);
-        const focusMap = { cards: hand, bricks: brickBar, build: buildBtn, power: powerBtn, castle: castles, goal: goalArrow, map: mapWrap };
-        focusMap[c.focus]?.classList.add('coach-focus');
-      }),
       R.on('end', (r) => onEnd(r)),
     ];
+
+    // ───────────── training coach ─────────────
+    let camTrack = null;
+    const api = {
+      els: {
+        hand, cards: cardEls.map((c) => c.node), nextBox, brickBar, buildBtn, confirmBtn, powerBtn, heroBox, castles, clock: clockBox, pauseBtn,
+        minimap, goalArrow, villagerChip, buildItem: (id) => buildItems.find((b) => b.id === id)?.node,
+      },
+      mapRect: () => {
+        const r = canvas.getBoundingClientRect();
+        return { x: r.left, y: r.top, w: r.width, h: r.height };
+      },
+      /** The on-screen box around a patch of ground (client px), kept inside the island view. */
+      worldBox: (x0, y0, x1, y1) => {
+        const r = canvas.getBoundingClientRect();
+        const pts = [renderer.toCss(x0, y0), renderer.toCss(x1, y0), renderer.toCss(x0, y1), renderer.toCss(x1, y1)];
+        const minX = clamp(Math.min(...pts.map((p) => p.x)), 0, r.width);
+        const maxX = clamp(Math.max(...pts.map((p) => p.x)), 0, r.width);
+        const minY = clamp(Math.min(...pts.map((p) => p.y)), 0, r.height);
+        const maxY = clamp(Math.max(...pts.map((p) => p.y)), 0, r.height);
+        if (maxX - minX < 4 || maxY - minY < 4) return null;
+        return { x: r.left + minX, y: r.top + minY, w: maxX - minX, h: maxY - minY };
+      },
+      look: (x, y) => {
+        camTrack = null;
+        cam.free = true;
+        cam.tx = x;
+        cam.ty = y;
+      },
+      track: (e) => {
+        camTrack = e || null;
+      },
+      follow: () => {
+        camTrack = null;
+        cam.free = false;
+        followBtn.hidden = true;
+      },
+      buildMode: () => buildMode,
+      buildSel: () => buildSel,
+      buildGhost: () => ui.build,
+      /** A free spot for a House near the castle, on the river side. Returns the footprint centre. */
+      houseSpot: () => {
+        const k = R.players[0].keep;
+        let best = null;
+        let bd = Infinity;
+        for (let y0 = Math.floor(k.y) - 8; y0 <= Math.floor(k.y) + 3; y0++) {
+          for (let x0 = Math.floor(k.x) - 7; x0 <= Math.floor(k.x) + 6; x0++) {
+            if (R.placementProblem(0, 'house', x0, y0)) continue;
+            const d = Math.hypot(x0 + 1 - (k.x - 3.5), y0 + 1 - (k.y - 3.5));
+            if (d < bd) {
+              bd = d;
+              best = { x: x0 + 1, y: y0 + 1 };
+            }
+          }
+        }
+        return best || { x: k.x - 3, y: k.y - 3 };
+      },
+    };
+    const coach = mode === 'training' ? new TrainingCoach({
+      app, R, api, ai: trainingAI,
+      onSkip: async () => {
+        R.pause(true);
+        const yes = await app.confirm({ title: 'Skip the tutorial?', text: 'You can replay it any time from Training.', yes: 'Skip', no: 'Keep learning' });
+        if (yes) {
+          finishTutorial(true);
+          app.go('home');
+        } else R.pause(false);
+      },
+    }) : null;
 
     // ───────────── loop ─────────────
     let raf = 0;
@@ -719,7 +776,8 @@ export const realmScreen = {
       last = now;
       if (R.paused) dt = 0;
       keyboardJoy();
-      acc += dt;
+      coach?.update(dt);
+      acc += coach?.frozen && R.phase === 'play' ? 0 : dt;
       let n = 0;
       while (acc >= STEP && n < 5) {
         R.step(STEP);
@@ -750,6 +808,13 @@ export const realmScreen = {
         followBtn.hidden = false;
         cam.tx = c.x;
         cam.ty = c.y - dt * 8;
+      }
+      if (camTrack) {
+        if (camTrack.alive) {
+          cam.free = true;
+          cam.tx = camTrack.x;
+          cam.ty = camTrack.y - 1;
+        } else camTrack = null;
       }
       let tx = cam.tx;
       let ty = cam.ty;
@@ -911,7 +976,6 @@ export const realmScreen = {
       clearCardSel();
       if (buildMode) setBuildMode(false);
       if (joy) endJoy();
-      coach.hidden = true;
       goalArrow.hidden = true;
       const win = r.winner === 0;
       const draw = r.winner === -1;
@@ -956,7 +1020,10 @@ export const realmScreen = {
         res.newArena != null ? el('div.res-banner.arena', { text: `NEW REALM: ${ARENAS[res.newArena].name}` }) : null);
       const actions = el('div.res-actions');
       const wonDrop = outcome === 'win' || mode === 'training' || (mode === 'horde' && nights >= 3);
-      if (wonDrop) {
+      if (mode === 'training' && firstTraining) {
+        // the first reward is fixed so the menu tour can show a card upgrade
+        actions.appendChild(el('button.btn.btn-gold.btn-big.pulse', { type: 'button', onclick: () => app.go('lucky', { tier: 0, drop: tutorialDrop(), tutorial: true, from: 'tutorial' }) }, 'Open Lucky Drop'));
+      } else if (wonDrop) {
         const tier = mode === 'horde' ? (nights >= 10 ? 2 : nights >= 6 ? 1 : 0) : r.reason === 'keep' ? 1 : 0;
         actions.appendChild(el('button.btn.btn-gold.btn-big.pulse', { type: 'button', onclick: () => app.go('lucky', { tier, from: 'battle' }) }, 'Open Lucky Drop'));
         actions.appendChild(el('button.btn.btn-ghost', { type: 'button', onclick: () => app.go('home') }, 'Skip'));
@@ -977,7 +1044,7 @@ export const realmScreen = {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keyup', onKey);
       offs.forEach((f) => f());
-      clearTimeout(coachTimer);
+      coach?.destroy();
       app.onHidden = null;
       R.silent = true;
       try {
