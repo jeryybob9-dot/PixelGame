@@ -42,14 +42,14 @@ tints with dashed edges, WorldBox style.
 - **Summon cards** can be dropped inside your territory, or anywhere within 4 tiles of your living hero. The hero is
   a walking beacon.
 - **Spells** can be cast anywhere.
-- **Building cards** (Tesla, Cannon, Crypt, Brick Tower, Elixir Mine) follow the building rule. They appear
+- **Building cards** (Tesla, Cannon, Crypt, Brick Tower, Faith Well) follow the building rule. They appear
   instantly and decay as in the card game.
 
 ### Buildings (bricks; villagers construct them)
 
 | Id | Name | Cost | Size | HP | Claim | Build | Effect |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| keep | Keep | — | 3×3 | 4200 | 8 | — | Shoots bricks (range 7) and is the drop-off point. Spawns villagers. If it falls, you lose. |
+| keep | Keep | — | 3×3 | 6000 | 8 | — | Shoots bricks (range 7) and is the drop-off point. Spawns villagers. Shielded during the Truce of Dawn, then mends 0.5%/s when left alone for 6 s. If it falls, you lose. |
 | house | House | 25 | 2×2 | 450 | 3 | 6 s | +4 population cap |
 | barracks | Barracks | 70 | 3×2 | 950 | 3 | 12 s | Trains a Warrior every 16 s (8 s in the Age of War) while there is pop room, up to 5 alive per barracks |
 | tower | Watchtower | 45 | 2×2 | 850 | 4 | 9 s | Archer tower, range 6.5. Tap it to give it an element for 80 bricks (fire/ice/lightning/earth). |
@@ -89,7 +89,7 @@ Unfinished buildings appear as scaffolds. Their HP grows as they are built, and 
 
 | Age | Time | Rules |
 | --- | --- | --- |
-| Dawn | 0:00–1:30 | Peaceful build-up. Nests do not raid. |
+| Dawn | 0:00–1:30 | Truce: Keeps cannot be damaged. Nests do not raid. |
 | Bricks | 1:30–3:30 | Deposits are rich (+50% per trip). Night falls every 80 s for 25 s, and nests raid at night. |
 | War | 3:30–6:00 | Barracks train twice as fast. The rival god turns aggressive. Raids are bigger. |
 | Chaos | 6:00–8:00 | Faith ×2. Disasters every ~14 s: meteors, lightning storms, earthquakes. |

@@ -144,7 +144,8 @@ shoot_laser, shoot_rocket, shoot_sniper, shoot_flame, shoot_zap, shoot_minigun, 
 explosion_small, explosion_big, meteor, lightning, freeze, heal, poison, fire_ignite, tower_hit, tower_destroy,
 king_activate, unit_die, hero_die, hero_respawn, form_upgrade, brick_collect, coin, gem, chest_open, card_reveal,
 rarity_up, victory, defeat, draw, countdown, fight, overtime, double_elixir, emote, level_up, build, earthquake,
-black_hole, zombie_infect, sheep, dragon_roar, ufo, splash, mine_pick, nuke.
+black_hole, zombie_infect, sheep, dragon_roar, ufo, splash, mine_pick, nuke, horn, built, hammer, age_up, night,
+dawn, raid, wolf_howl, relic, shrine, villager, faith, disaster.
 Music themes: menu, meadow, desert, frost, swamp, crystal, lava, candy, void, godbox, waves.
 
 ## Realm contract (src/realm/*)

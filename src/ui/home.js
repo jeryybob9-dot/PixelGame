@@ -278,12 +278,12 @@ export function openSettings(app) {
 
 export function openHowTo(app) {
   const items = [
-    ['Cards & elixir', 'Drag a card onto your half of the arena. Each costs elixir, which refills over time (twice as fast in the last minute).'],
-    ['Win', 'Destroy more towers than your opponent in 3 minutes. Knock down the King tower to win instantly. Ties go to overtime.'],
-    ['Your hero', 'Tap the ground to move your hero, tap an enemy to focus it. Heroes shoot automatically and deal extra damage to towers.'],
-    ['Bricks', 'Builders mine brick piles; defeated enemies and towers drop bricks too. Spend bricks to upgrade your hero form (unlocking spells) or to give a Princess tower an element.'],
-    ['God powers', 'Spell cards like Meteor, Plague, Black Hole and Tiny Nuke reshape the battle. Burning ground hurts anyone standing in it.'],
-    ['Progress', 'Wins give trophies, gold and a Lucky Drop. Tap the drop to try to upgrade it before opening. Upgrade cards, weapons and heroes between battles.'],
+    ['Realm Clash', 'You and a rival god share a small island. Topple the rival Keep to win at once, or rule more land (Dominion) when the Age of Chaos ends after 8 minutes.'],
+    ['Fight', 'Drag on the left side of the island to steer your hero with the joystick. It fires at enemies in range by itself. Tap the island to walk or attack. Spells, gadget and FORM are on the right.'],
+    ['Build', 'Tap BUILD, pick a building and tap inside your blue borders. Villagers construct it, mine brick deposits and repair. Houses grow your tribe, Barracks train Warriors, Temples add Faith, Outposts claim land far away.'],
+    ['Rule', 'Your tribe lives on its own. Nests send monsters at night, fires spread through forests, and four Ages change the rules. Clear nests for Red Bricks (powers for the match) and capture the Shrine in the middle.'],
+    ['Cast', 'Faith comes from your worshippers. Drag a card onto your land, or next to your hero, to summon it. Spells land anywhere. The horn sends your Warriors to CHARGE or back to GUARD.'],
+    ['Progress', 'Wins give trophies, gold and a Lucky Drop. Tap the drop to try to upgrade it before opening. Unlock new Realms, upgrade cards, weapons and heroes between matches.'],
   ];
   const body = el('div.howto', null, ...items.map(([h, t]) => el('div.howto-item', null, el('h3', { text: h }), el('p', { text: t }))));
   app.modal(body, { title: 'How to play' });

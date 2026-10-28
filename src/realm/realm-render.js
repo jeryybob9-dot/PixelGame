@@ -36,13 +36,22 @@ export class RealmRenderer extends BattleRenderer {
     this.view = { x0: 0, y0: 0, w: 1, h: 1 };
     this.light = document.createElement('canvas');
     this.lctx = this.light.getContext('2d');
+    // one soft light disc, stamped (scaled) for every light source at night
+    this.lightSprite = document.createElement('canvas');
+    this.lightSprite.width = this.lightSprite.height = 64;
+    const lg = this.lightSprite.getContext('2d');
+    const grad = lg.createRadialGradient(32, 32, 5, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(0,0,0,1)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    lg.fillStyle = grad;
+    lg.fillRect(0, 0, 64, 64);
     this.lavaTiles = [];
     for (let i = 0; i < R.tiles.length; i++) if (R.tiles[i] === T.LAVA) this.lavaTiles.push(i);
     this.minimapBase = null;
   }
 
-  /** Fill the css box with the canvas; the camera decides what is visible. */
-  resize(cssW, cssH, dpr = Math.min(3, globalThis.devicePixelRatio || 1)) {
+  /** Fill the css box with the canvas; the camera decides what is visible. 2x density is plenty for pixel art. */
+  resize(cssW, cssH, dpr = Math.min(2, globalThis.devicePixelRatio || 1)) {
     this.canvas.style.width = `${cssW}px`;
     this.canvas.style.height = `${cssH}px`;
     this.canvas.width = Math.round(cssW * dpr);
@@ -60,8 +69,9 @@ export class RealmRenderer extends BattleRenderer {
     if (this.world.width !== w || this.world.height !== h) {
       this.world.width = w;
       this.world.height = h;
-      this.light.width = w;
-      this.light.height = h;
+      // the night layer is soft, so half resolution is plenty
+      this.light.width = Math.ceil(w / 2);
+      this.light.height = Math.ceil(h / 2);
       this.w = this.world.getContext('2d');
       this.w.imageSmoothingEnabled = false;
     }
@@ -425,6 +435,18 @@ export class RealmRenderer extends BattleRenderer {
     if (s.attackAnimT > 0) s.attackAnimT -= 1 / 60;
     const scale = STRUCT_SCALE[key] || 1;
     this.sprite(c, key, x, bottom, { anim, t: s.age ?? t, team, flash: s.flash, scale });
+    if (s.struct === 'keep' && s.status?.invuln > 0) {
+      // the Truce of Dawn: a golden dome over the keep
+      c.strokeStyle = hexA('#ffe28a', 0.55 + 0.2 * Math.sin(t * 3));
+      c.fillStyle = hexA('#ffe28a', 0.1);
+      c.beginPath();
+      c.ellipse(x, bottom - 16, 30, 32, 0, Math.PI, 0);
+      c.lineTo(x + 30, bottom - 4);
+      c.ellipse(x, bottom - 4, 30, 6, 0, 0, Math.PI);
+      c.closePath();
+      c.fill();
+      c.stroke();
+    }
     if (s.struct === 'tower' && s.element) this.sprite(c, `elem_${s.element}`, x, bottom - 36 + Math.sin(t * 3), { t });
     if (s.struct === 'shrine') {
       // glow and capture ring
@@ -569,16 +591,14 @@ export class RealmRenderer extends BattleRenderer {
     l.fillStyle = `rgba(8,10,40,${0.62 * k})`;
     l.fillRect(0, 0, w, h);
     l.globalCompositeOperation = 'destination-out';
+    const spr = this.lightSprite;
     const glow = (x, y, r, a = 1) => {
-      const px = x * TILE - x0;
-      const py = y * TILE - y0;
-      const rr = r * TILE;
+      const px = (x * TILE - x0) / 2;
+      const py = (y * TILE - y0) / 2;
+      const rr = (r * TILE) / 2;
       if (px < -rr || py < -rr || px > w + rr || py > h + rr) return;
-      const g = l.createRadialGradient(px, py, rr * 0.15, px, py, rr);
-      g.addColorStop(0, `rgba(0,0,0,${a})`);
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      l.fillStyle = g;
-      l.fillRect(px - rr, py - rr, rr * 2, rr * 2);
+      l.globalAlpha = a;
+      l.drawImage(spr, px - rr, py - rr, rr * 2, rr * 2);
     };
     const flick = 1 + Math.sin(t * 9) * 0.04;
     for (const s of R.structures) {
@@ -604,13 +624,18 @@ export class RealmRenderer extends BattleRenderer {
       if (tx >= tv.x0 && tx < tv.x1 && ty >= tv.y0 && ty < tv.y1) glow(tx + 0.5, ty + 0.5, 1.3, 0.6);
     }
     for (const p of R.projectiles) if (p.alive && (p.proj === 'fireball' || p.proj === 'rocket')) glow(p.x, p.y, 1, 0.7);
+    l.globalAlpha = 1;
     l.globalCompositeOperation = 'source-over';
-    c.drawImage(this.light, 0, 0);
+    c.imageSmoothingEnabled = true;
+    c.drawImage(this.light, 0, 0, w * 2, h * 2);
+    c.imageSmoothingEnabled = false;
     // warm light tint near fires and windows is implied by the cut-outs; add a few fireflies
     if (k > 0.5) {
+      const W2 = this.world.width;
+      const H2 = this.world.height;
       for (let i = 0; i < 10; i++) {
-        const fx = ((i * 97 + t * 7 * ((i % 3) + 1)) % w);
-        const fy = ((i * 53 + Math.sin(t + i) * 20 + i * 41) % h + h) % h;
+        const fx = ((i * 97 + t * 7 * ((i % 3) + 1)) % W2);
+        const fy = ((i * 53 + Math.sin(t + i) * 20 + i * 41) % H2 + H2) % H2;
         c.fillStyle = `rgba(220,255,140,${0.4 + 0.4 * Math.sin(t * 3 + i)})`;
         c.fillRect(Math.round(fx), Math.round(fy), 1, 1);
       }
@@ -618,6 +643,11 @@ export class RealmRenderer extends BattleRenderer {
   }
 
   // ───────────────────────── minimap ─────────────────────────
+
+  /** Flash a spot on the minimap (attacks, raids). */
+  ping(x, y) {
+    (this.pings ||= []).push({ x, y, t: this.t });
+  }
 
   /** Draw the island, borders, buildings, units and the camera box into a small canvas (1 css px per tile * s). */
   drawMinimap(mc, s = 2) {
@@ -673,6 +703,17 @@ export class RealmRenderer extends BattleRenderer {
       mc.fillStyle = e.kind === 'hero' ? (e.team === 0 ? '#ffffff' : '#ffe14a') : e.team === 0 ? TEAM_COL[0] : e.team === 1 ? TEAM_COL[1] : '#3a2a2a';
       const sz = e.kind === 'hero' ? 3 : e.kind === 'villager' ? 1 : 2;
       mc.fillRect(Math.floor(e.x * s - sz / 2), Math.floor(e.y * s - sz / 2), sz, sz);
+    }
+    // alert pings
+    const now = this.t;
+    this.pings = (this.pings || []).filter((p) => now - p.t < 3);
+    for (const p of this.pings) {
+      const k = ((now - p.t) % 1);
+      mc.strokeStyle = `rgba(255,70,60,${1 - k})`;
+      mc.lineWidth = 1.5;
+      mc.beginPath();
+      mc.arc(p.x * s, p.y * s, 2 + k * 8, 0, Math.PI * 2);
+      mc.stroke();
     }
     // camera box
     const z = this.cam.zoom;

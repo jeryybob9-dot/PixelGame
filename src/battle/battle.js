@@ -624,7 +624,7 @@ export class Battle {
     this.clock -= dt;
     if (!this.overtime && before > DOUBLE_ELIXIR_AT && this.clock <= DOUBLE_ELIXIR_AT) {
       this.elixirMult = 2;
-      this.emit('banner', { text: 'DOUBLE ELIXIR!', kind: 'elixir' });
+      this.emit('banner', { text: 'DOUBLE FAITH!', kind: 'elixir' });
       this.sfx('double_elixir');
     }
     if (!this.overtime && this.clock <= 0) {

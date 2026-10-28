@@ -17,7 +17,7 @@ export const WILD = 2; // team id for nests, monsters and critters
 
 export const MATCH_LENGTH = 480;
 export const AGES = [
-  { id: 'dawn', name: 'Age of Dawn', at: 0, color: '#ffd9a0', blurb: 'Build your village' },
+  { id: 'dawn', name: 'Age of Dawn', at: 0, color: '#ffd9a0', blurb: 'Truce: Keeps are shielded. Build!' },
   { id: 'bricks', name: 'Age of Bricks', at: 90, color: '#ff9b5a', blurb: 'Deposits glitter (+50% bricks)' },
   { id: 'war', name: 'Age of War', at: 210, color: '#ff5a4d', blurb: 'Barracks train twice as fast' },
   { id: 'chaos', name: 'Age of Chaos', at: 360, color: '#c77dff', blurb: 'Faith x2. Disasters strike!' },
@@ -61,7 +61,7 @@ export const WARRIOR = { sprite: 'knight', hp: 520, dmg: 62, hs: 1.1, speed: 1.1
  * claim = territory radius. sprite = art key drawn bottom-centre on the footprint.
  */
 export const STRUCTURES = {
-  keep: { name: 'Keep', cost: 0, w: 3, h: 3, hp: 4200, claim: 8, build: 0, sprite: 'keep', dmg: 70, hs: 1.0, range: 7, desc: 'Your heart. Shoots, stores bricks and births villagers. If it falls, you lose.' },
+  keep: { name: 'Keep', cost: 0, w: 3, h: 3, hp: 6000, claim: 8, build: 0, sprite: 'keep', dmg: 70, hs: 1.0, range: 7, desc: 'Your heart. Shoots, stores bricks and births villagers. If it falls, you lose.' },
   house: { name: 'House', cost: 25, w: 2, h: 2, hp: 450, claim: 3, build: 6, sprite: 'house', desc: '+4 population cap.' },
   barracks: { name: 'Barracks', cost: 70, w: 3, h: 2, hp: 950, claim: 3, build: 12, sprite: 'barracks', desc: 'Trains Warriors (up to 5) while you have room.' },
   tower: { name: 'Watchtower', cost: 45, w: 2, h: 2, hp: 850, claim: 4, build: 9, sprite: 'princess_tower', dmg: 44, hs: 0.85, range: 6.5, desc: 'Archer tower. Tap it to give it an element.' },

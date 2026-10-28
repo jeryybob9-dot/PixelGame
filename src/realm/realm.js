@@ -246,7 +246,7 @@ export class Realm extends Battle {
       this.territoryDirty = true;
       this.puff(s.x, s.y, '#e8dcc0', 10);
       this.sparkle(s.x, s.y - 0.6, 1.2, '#ffe9a8', 12);
-      this.sfx('build');
+      this.sfx('built', { volume: s.team === 0 ? 0.8 : 0.35 });
       const p = this.players[s.team];
       if (p) p.stats.built++;
       this.emit('built', { team: s.team, s });
@@ -505,7 +505,7 @@ export class Realm extends Battle {
     if (!p || p.stance === stance) return;
     p.stance = stance;
     this.emit('stance', { team, stance });
-    if (stance === 'charge') this.sfx('fight', { volume: 0.6, pitch: 0.8 });
+    if (stance === 'charge') this.sfx('horn', { volume: 0.8 });
     else this.sfx('ui_back', { volume: 0.5 });
   }
 
@@ -962,8 +962,13 @@ export class Realm extends Battle {
       p.bricks += 1;
       p.stats.bricks += 1;
     }
-    // villagers from the keep
+    // the Truce of Dawn shields keeps; afterwards they slowly mend when left alone
     const keep = p.keep;
+    if (keep?.alive) {
+      if (this.ageIdx === 0) keep.status.invuln = 0.5;
+      else if (!keep.lastHitT || this.time - keep.lastHitT > 6) keep.hp = Math.min(keep.maxHp, keep.hp + keep.maxHp * 0.005 * dt);
+    }
+    // villagers from the keep
     if (keep?.alive && p.pop < p.popCap) {
       p.villagerT -= dt;
       if (p.villagerT <= 0) {
@@ -971,9 +976,22 @@ export class Realm extends Battle {
         p.villagerT = VILLAGER_EVERY / (1 + houses * 0.15);
         const v = this.spawnVillager(team, keep.x + (Math.random() - 0.5) * 1.5, keep.y + (team === 0 ? -1.9 : 1.9));
         this.sparkle(v.x, v.y - 0.4, 0.5, '#ffe9a8', 6);
+        if (team === 0) this.sfx('villager', { volume: 0.5 });
         this.emit('villagerBorn', { team, v });
       }
     } else p.villagerT = Math.max(p.villagerT, 1.5);
+    // alert the owner when a building is under attack (once every 12 s per building)
+    p.alertT = (p.alertT || 0) - dt;
+    if (p.alertT <= 0) {
+      p.alertT = 0.5;
+      for (const s of this.structures) {
+        if (!s.alive || s.team !== team || !s.lastHitT || this.time - s.lastHitT > 0.6) continue;
+        if (s.alertedT && this.time - s.alertedT < 12) continue;
+        s.alertedT = this.time;
+        this.emit('underAttack', { team, s });
+        break;
+      }
+    }
     // jobs
     p.jobT -= dt;
     if (p.jobT <= 0) {
@@ -1068,7 +1086,10 @@ export class Realm extends Battle {
       }
       this.puff(n.x, n.y, '#5b5068', 10);
     }
-    if (this.nests.some((n) => n.alive)) this.emit('raid', {});
+    if (this.nests.some((n) => n.alive)) {
+      this.sfx('wolf_howl', { volume: 0.6 });
+      this.emit('raid', {});
+    }
   }
 
   updateCritter(c, dt) {
@@ -1126,14 +1147,14 @@ export class Realm extends Battle {
       this.grantRelic(team, r.id);
       this.sparkle(p.x, p.y - 0.4, 1.4, '#ff4a3a', 24);
       this.flashRing(p.x, p.y, 1.6, '#ff6a5a');
-      this.sfx('rarity_up');
+      this.sfx('relic');
       this.emit('relic', { team, relic: r });
     } else if (p.type === 'brick') {
       this.addBricks(team, p.amount || 10, p.x, p.y - 0.4);
       this.sfx('brick_collect', { volume: 0.6 });
     } else if (p.type === 'faith') {
       this.addElixir(team, p.amount || 1, p.x, p.y - 0.4);
-      this.sfx('heal', { volume: 0.4, pitch: 1.4 });
+      this.sfx('faith', { volume: 0.6 });
     } else if (p.type === 'heart') {
       const h = pl.hero;
       if (h) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.35);
@@ -1187,7 +1208,7 @@ export class Realm extends Battle {
       this.grid.setFootprint(s.fp.x0, s.fp.y0, s.fp.w, s.fp.h, who, s.id);
       this.flashRing(s.x, s.y, 3, who === 0 ? '#7fb8ff' : '#ff8a7f');
       this.sparkle(s.x, s.y - 1, 1.6, '#ffe9a8', 24);
-      this.sfx('rarity_up', { pitch: 0.8 });
+      this.sfx('shrine');
       this.players[who].stats.shrine++;
       this.emit('shrine', { team: who, prev });
     }
@@ -1218,6 +1239,7 @@ export class Realm extends Battle {
       if (!this.blockedAt(Math.floor(x), Math.floor(y))) break;
     }
     this.emit('disaster', { kind, x, y });
+    this.sfx('disaster', { volume: 0.8 });
     if (kind === 'meteor') {
       this.warnings.push({ x, y, r: 2.2, t: 1.4, max: 1.4 });
       this.pending.push({ t: 1.4, fn: () => this.meteorStrike(x, y) });
@@ -1363,7 +1385,7 @@ export class Realm extends Battle {
       const age = AGES[idx];
       this.emit('age', { idx, age });
       this.emit('banner', { text: age.name.toUpperCase(), sub: age.blurb, kind: 'age' });
-      this.sfx(idx === 3 ? 'overtime' : 'double_elixir');
+      this.sfx('age_up');
       if (idx === 3) this.audio?.setIntensity?.(1);
       else if (idx === 2) this.audio?.setIntensity?.(0.5);
     }
@@ -1376,8 +1398,8 @@ export class Realm extends Battle {
     }
     if (night !== this.night) {
       this.night = night;
+      this.sfx(night ? 'night' : 'dawn', { volume: 0.7 });
       if (night) {
-        this.sfx('ufo', { volume: 0.3, pitch: 0.5 });
         this.horde?.onNight();
         this.launchRaids();
       } else this.horde?.onDay();

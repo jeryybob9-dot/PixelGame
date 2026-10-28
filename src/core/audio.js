@@ -211,6 +211,13 @@ function boom(v, t, s = 1) {
   noise(v, t + 0.08, 0.9 * s, 0.28, { type: 'lowpass', f0: 380, f1: 70, a: 0.12 });
 }
 
+/** Soft wooden hammer knock, shared by the building patches. */
+function knock(v, t, s = 1) {
+  noise(v, t, 0.03, 0.22 * s, { type: 'bandpass', f0: 1600, q: 2.5 });
+  tone(v, 'triangle', 720, 540, t, 0.05, 0.2 * s, { sweep: 0.04 });
+  tone(v, 'sine', 210, 110, t, 0.06, 0.3 * s);
+}
+
 // ---------------------------------------------------------------------------------------------
 // SFX patches. meta: cd = per-name cooldown (s), max = concurrent voices of this name,
 // prio = steal priority (higher wins), vary = random pitch spread, duck = music duck time (s).
@@ -704,6 +711,149 @@ def('nuke', (v) => {
   noise(v, 0.25, 2.8, 0.25, { type: 'bandpass', f0: 500, f1: 120, a: 0.3 });
   tone(v, 'sawtooth', 220, 30, 0.1, 3, 0.05, { a: 0.3 });
 }, { cd: 1, prio: 4, max: 1, duck: 3 });
+
+// --- Realm: village, ages, day/night ---
+def('horn', (v) => {
+  // Brass: detuned saws scoop up into pitch while a lowpass opens with the swell, then sag off.
+  const st = v.t;
+  const f = filt(v, 'lowpass', 400, 1.2);
+  f.frequency.setValueAtTime(F(v, 400), st);
+  f.frequency.linearRampToValueAtTime(F(v, 1700), st + 0.3);
+  f.frequency.exponentialRampToValueAtTime(F(v, 500), st + 0.9);
+  for (const d of [-9, 9]) {
+    const h = tone(v, 'sawtooth', M(45) * 0.93, M(45), 0, 0.9, 0.14, { a: 0.16, hold: 0.5, sweep: 0.12, detune: d, to: f });
+    h.osc.frequency.setValueAtTime(F(v, M(45)), st + 0.7);
+    h.osc.frequency.exponentialRampToValueAtTime(F(v, M(45) * 0.94), st + 0.9);
+    lfo(v, h.osc.detune, 5.5, 10, 0.3, 0.6);
+  }
+  tone(v, 'square', M(45), null, 0.03, 0.85, 0.04, { a: 0.2, hold: 0.4, to: f });
+  tone(v, 'triangle', M(33), null, 0, 0.9, 0.24, { a: 0.15, hold: 0.5 });
+  noise(v, 0, 0.3, 0.05, { type: 'bandpass', f0: 900, q: 1, a: 0.1 }); // breath
+}, { cd: 0.4, prio: 3, max: 1 });
+
+def('built', (v) => {
+  knock(v, 0);
+  knock(v, 0.09);
+  [79, 84, 88].forEach((m, i) => {
+    tone(v, 'triangle', M(m), null, 0.2 + i * 0.06, i === 2 ? 0.26 : 0.12, 0.15, { hold: 0.03 });
+    tone(v, 'pulse12', M(m + 12), null, 0.2 + i * 0.06, 0.08, 0.03);
+  });
+  noise(v, 0.32, 0.22, 0.04, { type: 'highpass', f0: 7000 });
+}, { cd: 0.1, prio: 2, max: 2, vary: 0.02 });
+
+def('hammer', (v) => knock(v, 0, 0.7), { cd: 0.05, prio: 0, max: 3, vary: 0.08 });
+
+def('age_up', (v) => {
+  // Gong: inharmonic sine partials that settle slightly flat, a beating pair and a mallet thump.
+  [[1, 0.3, 1.4], [1.52, 0.12, 1.1], [2.03, 0.09, 0.9], [2.74, 0.06, 0.7], [3.9, 0.03, 0.5]].forEach(([r, vol, d]) => {
+    tone(v, 'sine', 98 * r * 1.02, 98 * r, 0, d, vol, { sweep: 0.3 });
+  });
+  tone(v, 'sine', 98 * 1.012, null, 0, 1.3, 0.12);
+  noise(v, 0, 0.14, 0.22, { type: 'lowpass', f0: 1200, f1: 200 });
+  for (const [m, t, d] of [[67, 0.3, 0.1], [72, 0.42, 0.1], [76, 0.54, 0.1], [79, 0.66, 0.68]]) {
+    tone(v, 'pulse25', M(m), null, t, d + 0.05, 0.12, { hold: d * 0.6 });
+    tone(v, 'triangle', M(m - 12), null, t, d + 0.05, 0.1, { hold: d * 0.6 });
+  }
+  [64, 72].forEach((m) => tone(v, 'triangle', M(m), null, 0.66, 0.7, 0.07, { hold: 0.3 }));
+  tone(v, 'triangle', M(48), null, 0.66, 0.7, 0.28, { hold: 0.3 });
+  noise(v, 0.66, 0.6, 0.08, { type: 'highpass', f0: 5500 });
+}, { cd: 1, prio: 4, max: 1, duck: 1.4 });
+
+def('night', (v) => {
+  const w = noise(v, 0, 1.2, 0.08, { type: 'bandpass', f0: 350, f1: 900, sweep: 0.6, q: 2, a: 0.4 }); // wind
+  w.f.frequency.exponentialRampToValueAtTime(F(v, 300), v.t + 1.2);
+  [[75, 0], [72, 0.3]].forEach(([m, t]) => {
+    tone(v, 'sine', M(m), null, t, 0.85, 0.15);
+    tone(v, 'triangle', M(m - 12), null, t, 0.7, 0.07);
+    tone(v, 'sine', M(m) * 2.76, null, t, 0.3, 0.025); // bell overtone
+  });
+  [0.62, 0.86].forEach((t, i) => tone(v, 'sine', 392, 350, t, 0.2 + i * 0.12, 0.1, { a: 0.05 })); // owl: hoo-hoo
+}, { cd: 1, prio: 3, max: 1 });
+
+def('dawn', (v) => {
+  [65, 69, 72, 77, 81].forEach((m, i) => {
+    tone(v, 'triangle', M(m), null, i * 0.08, 0.6 - i * 0.04, 0.14, { a: 0.03 });
+    tone(v, 'sine', M(m + 12), null, i * 0.08, 0.4, 0.04, { a: 0.03 });
+  });
+  tone(v, 'triangle', M(53), null, 0, 0.9, 0.18, { a: 0.2, hold: 0.3 });
+  [93, 96, 100].forEach((m, i) => tone(v, 'pulse12', M(m), null, 0.42 + i * 0.06, 0.12, 0.03)); // sparkle
+  noise(v, 0.35, 0.5, 0.04, { type: 'highpass', f0: 7000, a: 0.15 });
+}, { cd: 1, prio: 3, max: 1 });
+
+def('raid', (v) => {
+  for (const t of [0, 0.2, 0.4]) {
+    [[1, 0.14, 0.38], [2.42, 0.06, 0.25], [3.9, 0.03, 0.15], [5.4, 0.015, 0.1]].forEach(([r, vol, d]) => {
+      tone(v, 'sine', 980 * r, null, t, d, vol);
+    });
+    tone(v, 'sine', 980 * 1.008, null, t, 0.38, 0.08); // beating = ringing bell
+    tone(v, 'square', 980, null, t, 0.04, 0.05);
+    noise(v, t, 0.02, 0.15, { type: 'bandpass', f0: 3500, q: 1.5 }); // clapper
+  }
+}, { cd: 0.6, prio: 3, max: 1 });
+
+def('wolf_howl', (v) => {
+  // "a-woooo": glide up from a low yip, hold with a widening vibrato, then sag away.
+  const st = v.t;
+  const oscs = [['sine', 1, 0.22], ['triangle', 2, 0.03]].map(([type, r, vol]) => {
+    const h = tone(v, type, 300 * r, 560 * r, 0, 1, vol, { a: 0.08, hold: 0.5, sweep: 0.25 });
+    h.osc.frequency.setValueAtTime(F(v, 560 * r), st + 0.6);
+    h.osc.frequency.exponentialRampToValueAtTime(F(v, 380 * r), st + 1);
+    return h.osc;
+  });
+  const l = lfo(v, oscs[0].detune, 5.5, 0, 0, 1);
+  l.g.connect(oscs[1].detune);
+  l.g.gain.setValueAtTime(0, st + 0.25);
+  l.g.gain.linearRampToValueAtTime(35, st + 0.75);
+  noise(v, 0, 0.9, 0.03, { type: 'bandpass', f0: 600, f1: 1100, q: 3, a: 0.2 }); // breath
+}, { cd: 0.4, max: 2, vary: 0.05 });
+
+def('relic', (v) => {
+  [79, 83, 86, 90, 91, 95].forEach((m, i) => tone(v, i & 1 ? 'pulse12' : 'triangle', M(m), null, i * 0.05, 0.2, 0.13));
+  const tr = trem(v, 10, 0.35, 0.3, 0.7);
+  [91, 95, 98].forEach((m) => {
+    tone(v, 'sine', M(m), null, 0.3, 0.7, 0.06, { a: 0.04, to: tr });
+    tone(v, 'sine', M(m) * 1.006, null, 0.3, 0.7, 0.04, { a: 0.04, to: tr }); // slow beating = shimmer
+  });
+  tone(v, 'triangle', M(67), null, 0.3, 0.6, 0.15, { hold: 0.15 });
+  noise(v, 0.2, 0.75, 0.05, { type: 'highpass', f0: 6500, a: 0.2 });
+}, { cd: 0.2, prio: 3, max: 2 });
+
+def('shrine', (v) => {
+  // Choir-like "aah": each chord tone is a detuned triangle pair plus a soft sine octave,
+  // swelling in together under one gentle shared vibrato.
+  const f = filt(v, 'lowpass', 2400);
+  const oscs = [];
+  [60, 64, 67, 72].forEach((m, i) => {
+    for (const d of [-7, 7]) oscs.push(tone(v, 'triangle', M(m), null, i * 0.04, 1.2, 0.07, { a: 0.35, hold: 0.35, detune: d, to: f }).osc);
+    tone(v, 'sine', M(m + 12), null, i * 0.04, 1.1, 0.025, { a: 0.4, hold: 0.3 });
+  });
+  const l = lfo(v, oscs[0].detune, 5, 10, 0.2, 1);
+  for (const o of oscs.slice(1)) l.g.connect(o.detune);
+  tone(v, 'sine', M(48), null, 0, 1.2, 0.2, { a: 0.3, hold: 0.4 });
+  noise(v, 0, 0.9, 0.03, { type: 'bandpass', f0: 1200, q: 0.8, a: 0.4 }); // breath
+}, { cd: 0.5, prio: 3, max: 1 });
+
+def('villager', (v) => {
+  tone(v, 'sine', 500, 1100, 0, 0.06, 0.22, { sweep: 0.04 }); // pop
+  tone(v, 'pulse25', M(84), null, 0.05, 0.08, 0.08);
+  tone(v, 'triangle', M(88), null, 0.07, 0.08, 0.1);
+}, { cd: 0.06, max: 3, vary: 0.06 });
+
+def('faith', (v) => {
+  [[84, 0], [91, 0.06]].forEach(([m, t]) => {
+    tone(v, 'sine', M(m), null, t, 0.34, 0.13, { a: 0.01 });
+    tone(v, 'triangle', M(m) * 1.004, null, t, 0.3, 0.05, { a: 0.01 });
+  });
+  noise(v, 0.04, 0.3, 0.03, { type: 'highpass', f0: 7500, a: 0.1 });
+}, { cd: 0.05, max: 3, vary: 0.02 });
+
+def('disaster', (v) => {
+  const tr = trem(v, 7, 0.3, 0, 1);
+  noise(v, 0, 1, 0.4, { type: 'lowpass', f0: 320, f1: 110, a: 0.2, hold: 0.3, to: tr });
+  const f = filt(v, 'lowpass', 900, 1.5);
+  [M(40), M(46)].forEach((hz) => tone(v, 'sawtooth', hz, hz * 0.94, 0.05, 0.95, 0.11, { a: 0.12, hold: 0.35, to: f })); // tritone
+  tone(v, 'sine', 70, 40, 0, 1, 0.45, { a: 0.1 });
+}, { cd: 0.6, prio: 3, max: 1, duck: 1 });
 
 /** Every SFX name this module can play. */
 export const SFX_NAMES = Object.freeze(Object.keys(PATCHES));

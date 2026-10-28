@@ -132,7 +132,10 @@ export const realmScreen = {
     root.appendChild(screen);
 
     const renderer = new RealmRenderer(R, canvas);
-    if (globalThis.__BBR) globalThis.__BBR.realm = R;
+    if (globalThis.__BBR) {
+      globalThis.__BBR.realm = R;
+      globalThis.__BBR.realmRenderer = renderer;
+    }
     let zoomTiles = clamp(profile.settings.realmZoom || 13, 8, 26);
     const fit = () => {
       const r = mapWrap.getBoundingClientRect();
@@ -747,6 +750,21 @@ export const realmScreen = {
       R.on('stance', ({ team, stance }) => team === 1 && stance === 'charge' && note('The rival sounds the war horn!', 'bad')),
       R.on('disaster', ({ kind }) => note(kind === 'meteor' ? 'Meteor incoming!' : kind === 'storm' ? 'Lightning storm!' : 'Earthquake!', 'bad')),
       R.on('depositEmpty', () => R.deposits.every((d) => d.amount <= 0 || R.tileOwner(d.x, d.y) !== 0) && note('Home deposits are running dry. Build an Outpost!', 'info')),
+      R.on('underAttack', ({ team, s }) => {
+        if (team !== 0) return;
+        renderer.ping(s.x, s.y);
+        const onScreen = (() => {
+          const p = renderer.toCss(s.x, s.y);
+          return p.x > 0 && p.y > 0 && p.x < renderer.layout.cssW && p.y < renderer.layout.cssH;
+        })();
+        if (!onScreen) {
+          note(`${s.struct === 'keep' ? 'Our Keep' : `A ${STRUCTURES[s.struct]?.name || 'building'}`} is under attack!`, 'bad');
+          app.sfx('raid', { volume: 0.35 });
+        }
+      }),
+      R.on('raid', () => {
+        for (const n of R.nests) if (n.alive) renderer.ping(n.x, n.y);
+      }),
       R.on('heroDeath', ({ team }) => note(team === 0 ? 'Your hero fell. Respawning at the Keep' : 'Rival hero defeated! +20 bricks', team === 0 ? 'bad' : 'good')),
       R.on('coach', (c) => {
         coach.hidden = !c;

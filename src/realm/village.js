@@ -184,7 +184,7 @@ function doBuild(R, v, dt, work) {
   if (v.hammerT <= 0) {
     v.hammerT = 0.45;
     R.spark(s.x + (v.x - s.x) * 0.4, s.y - 0.3, '#ffe9a8', 2);
-    if (Math.random() < 0.35) R.sfx('mine_pick', { volume: 0.15, pitch: 1.2 + Math.random() * 0.3 });
+    if (Math.random() < 0.35 && v.team === 0) R.sfx('hammer', { volume: 0.25, pitch: 0.9 + Math.random() * 0.3 });
   }
   if (s.built < 1) R.advanceBuild(s, (dt * work) / Math.max(0.5, s.buildTime));
   else {
@@ -276,7 +276,7 @@ function doMine(R, v, dt, work) {
     if (v.pickT <= 0) {
       v.pickT = 0.42;
       R.spark(d.x, d.y - 0.3, '#ffcf4a', 2);
-      if (Math.random() < 0.3) R.sfx('mine_pick', { volume: 0.18, pitch: 0.9 + Math.random() * 0.3 });
+      if (Math.random() < 0.3 && v.team === 0) R.sfx('mine_pick', { volume: 0.14, pitch: 0.9 + Math.random() * 0.3 });
     }
     if (v.mineT <= 0) {
       const rich = R.ageIdx >= 1 ? 1.5 : 1;

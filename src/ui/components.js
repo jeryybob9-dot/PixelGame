@@ -41,7 +41,7 @@ export function cardTile(cardId, o = {}) {
   const r = RARITY_INFO[c.rarity];
   const tile = el(`button.card-tile.r-${c.rarity}${o.small ? '.small' : ''}${o.locked ? '.locked' : ''}${o.selected ? '.selected' : ''}`, {
     type: 'button',
-    'aria-label': `${c.name}, ${r.name}, costs ${c.cost} elixir`,
+    'aria-label': `${c.name}, ${r.name}, costs ${c.cost} Faith`,
     onclick: o.onClick,
   },
   el('div.card-frame', null,
@@ -71,7 +71,7 @@ export function statBar(label, frac, valueText, color = 'var(--gold)') {
 
 /** Currency chip like [coin 1,250]. */
 export function chip(kind, amount, onClick) {
-  const keys = { gold: 'ui_gold', gems: 'ui_gem', trophies: 'ui_trophy', bricks: 'ui_brick', elixir: 'ui_elixir', crowns: 'ui_crown', xp: 'ui_xp' };
+  const keys = { gold: 'ui_gold', gems: 'ui_gem', trophies: 'ui_trophy', bricks: 'ui_brick', elixir: 'ui_faith', faith: 'ui_faith', crowns: 'ui_crown', xp: 'ui_xp' };
   return el(`button.chip.chip-${kind}`, { type: 'button', onclick: onClick, 'aria-label': `${amount} ${kind}` }, icon(keys[kind] || 'ui_gold', '', 2), el('span.chip-val', { text: fmtNum(amount) }));
 }
 

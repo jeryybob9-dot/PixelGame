@@ -23,7 +23,7 @@ export const cardsTab = {
         app.sfx('ui_click');
         render();
       } }, `Deck ${i + 1}`)));
-      const head = el('div.deck-head', null, slots, el('div.deck-avg', null, icon('ui_elixir', '', 2), el('span', { text: `Avg ${deckAverage().toFixed(1)}` })));
+      const head = el('div.deck-head', null, slots, el('div.deck-avg', null, icon('ui_faith', '', 2), el('span', { text: `Avg ${deckAverage().toFixed(1)}` })));
       const grid = el(`div.deck-grid${swapping ? '.swapping' : ''}`, null, ...deck.map((id, slot) => {
         const info = cardUpgradeInfo(id);
         const tile = cardTile(id, { level: cardLevel(id), count: p.cards[id]?.count, need: info && !info.maxed ? info.cards : null, onClick: () => {

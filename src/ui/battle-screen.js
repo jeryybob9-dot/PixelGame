@@ -143,13 +143,13 @@ export const battleScreen = {
     const cardEls = [0, 1, 2, 3].map((i) => {
       const fill = el('div.hc-fill');
       const node = el('button.hand-card', { type: 'button', dataset: { slot: String(i) } },
-        el('img.hc-art', { alt: '', draggable: 'false' }), el('div.hc-cost', null, el('span')), fill);
+        el('img.hc-art', { alt: '', draggable: 'false' }), el('div.hc-cost.faith', null, el('span')), fill);
       return { node, img: node.querySelector('img'), cost: node.querySelector('.hc-cost span'), fill, id: null };
     });
     const hand = el('div.hand', null, nextBox, ...cardEls.map((c) => c.node));
     const elixirSegs = Array.from({ length: ELIXIR_MAX }, () => el('div.ex-seg', null, el('div.ex-fill')));
     const elixirNum = el('div.ex-num', { text: '5' });
-    const elixirBar = el('div.elixir-bar', null, elixirNum, el('div.ex-segs', null, ...elixirSegs));
+    const elixirBar = el('div.elixir-bar.faith', null, elixirNum, el('div.ex-segs', null, ...elixirSegs));
     const bottom = el('div.b-bottom', null, heroBar, hand, elixirBar);
     const screen = el('div.battle', null, top, arenaWrap, bottom);
     root.appendChild(screen);
@@ -507,7 +507,7 @@ export const battleScreen = {
         setText(timerSub, 'tsub', fmtTime(B.clock));
       } else {
         setText(timerEl, 'timer', fmtTime(B.clock));
-        setText(timerSub, 'tsub', B.overtime ? 'OVERTIME' : B.elixirMult > 1 ? '2x ELIXIR' : 'TIME LEFT');
+        setText(timerSub, 'tsub', B.overtime ? 'OVERTIME' : B.elixirMult > 1 ? '2x FAITH' : 'TIME LEFT');
         timerEl.classList.toggle('hot', B.overtime || B.clock <= 10);
       }
       if (mode !== 'waves') {
@@ -544,7 +544,7 @@ export const battleScreen = {
           c.img.src = cardArtURL(id);
           c.cost.textContent = String(CARDS[id].cost);
           c.node.className = `hand-card r-${CARDS[id].rarity}${i === selected ? ' selected' : ''}`;
-          c.node.setAttribute('aria-label', `${CARDS[id].name}, ${CARDS[id].cost} elixir`);
+          c.node.setAttribute('aria-label', `${CARDS[id].name}, ${CARDS[id].cost} Faith`);
           c.node.classList.add('cycled');
           setTimeout(() => c.node.classList.remove('cycled'), 250);
         }

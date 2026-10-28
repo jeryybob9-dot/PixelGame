@@ -41,6 +41,7 @@ export class HordeDirector {
   onNight() {
     const R = this.R;
     this.night++;
+    R.sfx('raid', { volume: 0.7 });
     R.emit('banner', { text: `NIGHT ${this.night}`, sub: this.night % 5 === 0 ? 'A giant leads the horde!' : 'Defend your Keep!', kind: 'bad' });
     const n = 3 + this.night * 2;
     const kinds = this.night < 3 ? ['wolf'] : this.night < 6 ? ['wolf', 'bandit'] : ['wolf', 'bandit', 'skeleton', 'skeleton'];
@@ -58,7 +59,6 @@ export class HordeDirector {
     const R = this.R;
     R.emit('banner', { text: 'DAWN', sub: `Night ${this.night} survived`, kind: 'good' });
     R.addBricks(0, 20 + this.night * 10);
-    R.sfx('victory', { volume: 0.5 });
   }
 
   update(dt) {
