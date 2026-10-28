@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Realm Tiles Test</title>
+<style>
+  :root { --bg: #14121f; --panel: #241f3a; --ink: #f4efe6; --dim: #a79fc2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 12px/1.3 ui-monospace, Menlo, monospace; }
+  header { padding: 8px 16px; background: #1b1830; border-bottom: 1px solid #3b3463; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  header h1 { font-size: 14px; margin: 0; }
+  main { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 14px; }
+  figure { margin: 0; background: var(--panel); padding: 6px; border-radius: 6px; }
+  figcaption { color: var(--dim); margin-top: 4px; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; max-width: 100%; }
+  #stats { color: var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1>REALM TILES · random island per biome</h1>
+  <span id="stats"></span>
+</header>
+<main id="main"></main>
+<script type="module">
+import { REALM_TILES as T, renderRealmMap, renderRealmTile, drawRealmWater, drawTerritory, realmTileColor } from '../src/art/realm-tiles.js';
+import { BIOMES } from '../src/art/tiles.js';
+import { drawSprite, drawShadow } from '../src/art/sprite-cache.js';
+
+const params = new URLSearchParams(location.search);
+const W = Number(params.get('w') ?? 44);
+const H = Number(params.get('h') ?? 34);
+const zoom = Number(params.get('zoom') ?? 1);
+const only = params.get('biome') ? params.get('biome').split(',') : Object.keys(BIOMES);
+const seed = Number(params.get('seed') ?? 7);
+
+// --- tiny value-noise island generator (test only) ---------------------------------------------
+function rng(s) { return () => { s |= 0; s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function valueNoise(w, h, cell, r) {
+  const gw = Math.ceil(w / cell) + 2, gh = Math.ceil(h / cell) + 2;
+  const g = Array.from({ length: gw * gh }, r);
+  return (x, y) => {
+    const fx = x / cell, fy = y / cell, i = Math.floor(fx), j = Math.floor(fy);
+    let u = fx - i, v = fy - j; u = u * u * (3 - 2 * u); v = v * v * (3 - 2 * v);
+    const a = g[j * gw + i], b = g[j * gw + i + 1], c = g[(j + 1) * gw + i], d = g[(j + 1) * gw + i + 1];
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  };
+}
+function genIsland(w, h, s, biome) {
+  const r = rng(s);
+  const n1 = valueNoise(w, h, 7, r), n2 = valueNoise(w, h, 3, r), m1 = valueNoise(w, h, 6, r);
+  const tiles = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const nx = (x / (w - 1)) * 2 - 1, ny = (y / (h - 1)) * 2 - 1;
+    const d = Math.sqrt(nx * nx * 0.9 + ny * ny);
+    const e = n1(x, y) * 0.7 + n2(x, y) * 0.3 - d * 0.95 + 0.32;
+    const m = m1(x, y);
+    let t;
+    if (e < -0.06) t = T.DEEP;
+    else if (e < 0.04) t = T.WATER;
+    else if (e < 0.09) t = T.SAND;
+    else if (e < 0.33) t = m > 0.58 ? T.FOREST : T.GRASS;
+    else if (e < 0.42) t = T.HILL;
+    else t = T.MOUNTAIN;
+    if (biome === 'frost' && e > 0.26 && t !== T.MOUNTAIN) t = T.SNOW;
+    if (biome === 'lava' && t === T.GRASS && m < 0.3) t = T.LAVA;
+    if (biome === 'swamp' && t === T.GRASS && m > 0.45) t = T.MUD;
+    if (biome === 'crystal' && t === T.HILL && m > 0.5) t = T.CRYSTAL;
+    if (biome === 'desert' && t === T.FOREST && m < 0.66) t = T.GRASS;
+    tiles[y * w + x] = t;
+  }
+  // a little lake, an ash scar, a crystal cluster and a dirt path between two village sites
+  const cx = Math.floor(w * 0.36), cy = Math.floor(h * 0.62);
+  for (let y = -1; y <= 1; y++) for (let x = -2; x <= 1; x++) if (tiles[(cy + y) * w + cx + x] > T.SAND) tiles[(cy + y) * w + cx + x] = T.WATER;
+  for (let y = 0; y < 3; y++) for (let x = 0; x < 4; x++) { const i = (Math.floor(h * 0.4) + y) * w + Math.floor(w * 0.62) + x; if (tiles[i] > T.SAND && tiles[i] !== T.MOUNTAIN) tiles[i] = T.ASH; }
+  const a = [Math.floor(w * 0.25), Math.floor(h * 0.45)], b = [Math.floor(w * 0.72), Math.floor(h * 0.62)];
+  for (let i = 0; i <= 40; i++) {
+    const x = Math.round(a[0] + (b[0] - a[0]) * i / 40), y = Math.round(a[1] + (b[1] - a[1]) * i / 40 + Math.sin(i / 5) * 1.5);
+    const k = y * w + x; if (tiles[k] > T.SAND && tiles[k] !== T.MOUNTAIN && tiles[k] !== T.CRYSTAL) tiles[k] = T.PATH;
+  }
+  tiles[Math.floor(h * 0.3) * w + Math.floor(w * 0.5)] = T.CRYSTAL;
+  return { tiles, villages: [a, b] };
+}
+
+const main = document.getElementById('main');
+const worlds = [];
+let totalMs = 0;
+for (const biome of only) {
+  const s = seed + biome.length * 101;
+  const { tiles, villages } = genIsland(W, H, s, biome);
+  const t0 = performance.now();
+  const map = renderRealmMap(tiles, W, H, biome, s);
+  totalMs += performance.now() - t0;
+  // territory: each village claims a radius
+  const owner = new Int8Array(W * H).fill(-1);
+  villages.forEach(([vx, vy], team) => {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const d = Math.hypot(x - vx, (y - vy) * 1.1);
+      const t = tiles[y * W + x];
+      if (d < 7.5 && t !== T.DEEP && t !== T.WATER && owner[y * W + x] === -1) owner[y * W + x] = team;
+    }
+  });
+  const fig = document.createElement('figure');
+  const c = document.createElement('canvas');
+  c.width = W * 16 * zoom; c.height = H * 16 * zoom;
+  const mini = document.createElement('canvas');
+  mini.width = W * 2; mini.height = H * 2; mini.style.width = W * 2 + 'px';
+  const mg = mini.getContext('2d');
+  for (let i = 0; i < W * H; i++) { mg.fillStyle = realmTileColor(tiles[i], biome); mg.fillRect((i % W) * 2, Math.floor(i / W) * 2, 2, 2); }
+  const cap = document.createElement('figcaption');
+  cap.textContent = `${biome} — ${BIOMES[biome].name}`;
+  fig.append(c, cap, mini);
+  main.append(fig);
+  worlds.push({ biome, tiles, map, owner, c, villages, s, burnT: 0 });
+}
+document.getElementById('stats').textContent = `${only.length} maps of ${W}x${H} tiles rendered in ${totalMs.toFixed(0)} ms total`;
+
+const units = [['villager', 'walk'], ['villager', 'carry'], ['priest', 'pray'], ['villager', 'mine']];
+function frame(now) {
+  const t = now / 1000;
+  for (const wd of worlds) {
+    const g = wd.c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.setTransform(zoom, 0, 0, zoom, 0, 0);
+    // burn / regrow a forest tile every second to exercise renderRealmTile
+    if (params.get('burn') && t - wd.burnT > 1) {
+      wd.burnT = t;
+      const idx = wd.tiles.findIndex((v) => v === T.FOREST);
+      if (idx >= 0) {
+        wd.tiles[idx] = T.ASH;
+        renderRealmTile(wd.map.getContext('2d'), wd.tiles, W, H, idx % W, Math.floor(idx / W), wd.biome, wd.s);
+      }
+    }
+    g.drawImage(wd.map, 0, 0);
+    const view = { x0: 0, y0: 0, x1: W, y1: H };
+    drawRealmWater(g, wd.tiles, W, H, wd.biome, t, view);
+    drawTerritory(g, wd.owner, W, H, view);
+    wd.villages.forEach(([vx, vy], team) => {
+      const X = vx * 16 + 8, Y = vy * 16 + 12;
+      drawSprite(g, 'keep', X, Y, { team, t, anim: Math.floor(t) % 4 === 0 ? 'attack' : 'idle' });
+      drawSprite(g, 'house', X - 30, Y + 22, { team, t });
+      drawSprite(g, 'house', X + 28, Y + 18, { team, t: t + 0.4 });
+      drawSprite(g, 'temple', X - 34, Y - 6, { team, t });
+      drawSprite(g, 'barracks', X + 36, Y - 4, { team, t, anim: 'train' });
+      drawSprite(g, 'banner', X + 14, Y + 30, { team, t });
+      drawSprite(g, 'scaffold', X - 6, Y + 40, { team, frame: Math.floor(t) % 3 });
+      units.forEach(([k, anim], i) => {
+        const ux = X - 20 + i * 12 + Math.sin(t + i) * 4, uy = Y + 52 + (i % 2) * 6;
+        drawShadow(g, ux, uy, 8);
+        drawSprite(g, k, ux, uy, { team, t: t + i * 0.3, anim, flip: i % 2 === 1 });
+      });
+    });
+    drawSprite(g, 'nest', W * 8, H * 4 + 40, { t });
+    drawSprite(g, 'wolf', W * 8 - 20, H * 4 + 52, { anim: 'walk', t });
+    drawSprite(g, 'bandit', W * 8 + 24, H * 4 + 56, { anim: 'attack', t });
+    drawSprite(g, 'faith_orb', W * 8 - 40, H * 4 + 70, { t });
+    drawSprite(g, 'brick_orb', W * 8 - 30, H * 4 + 70, { t });
+    drawSprite(g, 'heart_orb', W * 8 - 20, H * 4 + 70, { t });
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__realmReady = true;
+</script>
+</body>
+</html>

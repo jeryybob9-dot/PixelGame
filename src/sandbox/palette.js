@@ -33,6 +33,7 @@ const SHALLOW = ['#2f6fb0', '#3a7fb8', '#3a6a5a', '#4a86c0', '#6fb0e8', '#3a3060
 const DEEP = ['#1d3b73', '#1f4278', '#1f3f50', '#24467c', '#3a6ab0', '#1c1638'].map(P);
 
 const SNOW = P('#f2f5fa');
+const SNOW2 = P('#dde5ef');
 const LAVA = P('#ff5a1f');
 const LAVA2 = P('#ffa52e');
 const LAVA3 = P('#b0301a');
@@ -64,7 +65,7 @@ export function baseColor(t, b, x, y, aux = 0) {
     case T.FOREST: return n < 0.38 ? FOREST2[b] : n > 0.88 ? FOREST3[b] : FOREST[b];
     case T.HILLS: return n < 0.25 ? GRASS2[b] : HILLS[b];
     case T.MOUNTAIN: return MOUNT[b];
-    case T.SNOW: return SNOW;
+    case T.SNOW: return n < 0.3 ? SNOW2 : SNOW;
     case T.LAVA: return n < 0.2 ? LAVA2 : n > 0.85 ? LAVA3 : LAVA;
     case T.ASH: return n < 0.4 ? ASH2 : ASH;
     case T.STONE: return STONE;

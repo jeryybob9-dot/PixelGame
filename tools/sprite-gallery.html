@@ -38,7 +38,7 @@
 <div id="errors"></div>
 <main id="main"></main>
 <script type="module">
-import { SPRITES, SPRITE_PROBLEMS, HEROES, WEAPON_IDS } from '../src/art/sprites.js';
+import { SPRITES, SPRITE_PROBLEMS, HEROES, WEAPON_IDS, REALM_SPRITE_KEYS } from '../src/art/sprites.js';
 import { getFrame, frameCount, spriteSize, drawSprite, drawHero, cardArt, iconURL, CARD_ART_MAP, drawShadow } from '../src/art/sprite-cache.js';
 import { BIOMES, renderArenaBackground, drawRiver } from '../src/art/tiles.js';
 
@@ -131,6 +131,12 @@ if (live) {
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
+}
+
+// --- Tiny Gods realm sprites -------------------------------------------------------------------
+{
+  const g = section('realm', 'Tiny Gods: village buildings, tribe, wildlife, loot, realm UI icons');
+  if (g) for (const k of REALM_SPRITE_KEYS.filter((k) => keys.includes(k))) g.append(spriteCard(k, SPRITES[k].w > 30 ? Math.max(2, SCALE - 1) : SCALE));
 }
 
 // --- per-kind static frames -------------------------------------------------------------------

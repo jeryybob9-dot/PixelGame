@@ -2623,6 +2623,665 @@ const CHESTS = {
 };
 
 // =============================================================================================
+// TINY GODS — village buildings, tribe units, wildlife, loot
+// =============================================================================================
+
+/** Village keep (40x44): toy-brick fortress with a donjon, front towers and a team banner. */
+function keepRows(fx = null) {
+  const W = 40;
+  const H = 44;
+  let r = blank(W, H);
+  // stone plinth
+  r = stamp(r, masonry(38, 6, { light: 'G', dark: 'd', mortar: 'd', bw: 5 }), 1, 37);
+  r = rect(r, 1, 37, 38, 1, 'g');
+  // main hall
+  r = stamp(r, masonry(30, 21, { bw: 4 }), 5, 16);
+  for (let x = 6; x < 34; x += 5) r = stamp(r, px(`
+    ggg
+    GGd
+  `), x, 14);
+  r = rect(r, 5, 16, 30, 1, 'd');
+  // donjon
+  r = stamp(r, masonry(14, 8, { bw: 4 }), 13, 9);
+  r = rect(r, 13, 9, 1, 8, 'a');
+  r = rect(r, 26, 9, 1, 8, 'A');
+  for (let x = 13; x < 27; x += 4) r = stamp(r, px(`
+    gg
+    Gd
+  `), x, 7);
+  r = rect(r, 13, 9, 14, 1, 'd');
+  r = stamp(r, px(`
+    .gGd.
+    gkkkd
+    gkTkd
+    gkkkd
+  `), 17, 11);
+  // banner pole + flag on the donjon
+  r = stamp(r, px(`
+    y.....
+    nLTTTt
+    nTTyTt
+    nTTTt.
+    nTt...
+    n.....
+    n.....
+  `), 19, 1);
+  // front towers with team bands
+  for (const tx of [1, 30]) {
+    r = stamp(r, masonry(9, 25, { bw: 3 }), tx, 13);
+    r = rect(r, tx, 13, 1, 25, 'a');
+    r = rect(r, tx + 8, 13, 1, 25, 'A');
+    for (let x = tx; x < tx + 9; x += 3) r = stamp(r, px(`
+      gg
+      Gd
+    `), x, 10);
+    r = rect(r, tx, 12, 9, 1, 'G');
+    r = rect(r, tx, 13, 9, 1, 'd');
+    r = rect(r, tx, 17, 9, 2, 'T');
+    r = rect(r, tx, 17, 9, 1, 'L');
+    r = rect(r, tx + 8, 17, 1, 2, 't');
+    r = stamp(r, px(`
+      gGd
+      kkk
+      kkk
+    `), tx + 3, 22);
+    r = stamp(r, px(`
+      gGd
+      kkk
+    `), tx + 3, 30);
+  }
+  // cannon port
+  r = stamp(r, px(`
+    .gGGd.
+    gkkkkd
+    gkddkd
+    .dddd.
+  `), 17, 19);
+  // gate
+  r = stamp(r, px(`
+    ..gggggg..
+    .gGkkkkGd.
+    gGknkknkGd
+    gGknkknkGd
+    gGknkknkGd
+    gGknkknkGd
+    gGknkknkGd
+    gGknkknkGd
+    gGknkknkGd
+  `), 15, 28);
+  if (fx) r = stamp(r, fx, 17, 18);
+  return r.map((row) => row.slice(0, W));
+}
+const keep = {
+  w: 40, h: 44, fps: 8, kind: 'building',
+  anims: {
+    idle: [O(keepRows())],
+    attack: [
+      O(keepRows(px(`
+        ..yhhy..
+        .yhwwhy.
+        ..yhhy..
+      `)), { skip: 'hwy' }),
+      O(keepRows(px(`
+        ...gg...
+        ..gGGg..
+        ...gg...
+      `))),
+    ],
+  },
+};
+
+const houseBase = px(`
+  ....................
+  ....................
+  .............aA.....
+  .........LT..aA.....
+  ........LTTt.aA.....
+  .......LTTTTtaA.....
+  ......LttttttAA.....
+  .....LTTTTTTTTt.....
+  ....LTTTTTTTTTTt....
+  ...LttttttttttttT...
+  ..LTTTTTTTTTTTTTTt..
+  ..tttttttttttttttt..
+  ...aaaAaaaaaAaaaA...
+  ...acciAanBnaAccA...
+  ...accCAanBnaACcA...
+  ...aaaAaanBnaaaaA...
+  ...AAAAAAnBnAAAAA...
+  ...aAaaaAnynaaAaA...
+  ...GGGGGGGGGGGGGGd..
+  ....................
+`);
+const house = {
+  w: 20, h: 20, fps: 3, kind: 'building',
+  anims: {
+    idle: [
+      O(stamp(houseBase, px(`
+        .i
+        i.
+      `), 13, 0), { skip: 'i' }),
+      O(stamp(houseBase, px(`
+        ..i
+        .i.
+      `), 13, 0), { skip: 'i' }),
+      O(stamp(houseBase, px(`
+        ...i
+        ..i.
+      `), 13, 0), { skip: 'i' }),
+    ],
+  },
+};
+
+const templeBase = shift(px(`
+  ......................
+  ......................
+  ..........yh..........
+  ..........yY..........
+  .........yhyY.........
+  ........yhyyyY........
+  .......yhyyyyyY.......
+  .......yyyyyyYY.......
+  ......YYYYYYYYYY......
+  ...gggggggggggggggd...
+  ...LTTTTTTTTTTTTTTt...
+  ...GGGGGGGGGGGGGGGd...
+  ...gGdgGdkkkkgGdgGd...
+  ...gGdgGdkkkkgGdgGd...
+  ...gGdgGdkkkkgGdgGd...
+  ...gGdgGdkkkkgGdgGd...
+  ...gGdgGdkyhkgGdgGd...
+  ...gGdgGdkYYkgGdgGd...
+  ...gGdgGdkkkkgGdgGd...
+  ...GGGGGGGGGGGGGGGd...
+  ..gggggggggggggggggd..
+  .gggggggggggggggggggd.
+  .GGGGGGGGGGGGGGGGGGGd.
+  .dddddddddddddddddddd.
+  ......................
+  ......................
+`), 0, 1);
+const temple = {
+  w: 22, h: 26, fps: 4, kind: 'building',
+  anims: {
+    idle: [
+      O(templeBase),
+      O(dots(templeBase, [[7, 4, 'h'], [14, 6, 'h'], [10, 18, 'y']]), { skip: 'h' }),
+      O(dots(templeBase, [[8, 2, 'h'], [13, 3, 'h'], [6, 8, 'h'], [15, 9, 'h'], [11, 17, 'y']]), { skip: 'h' }),
+    ],
+  },
+};
+
+const barracksBase = px(`
+  ........................
+  ........................
+  ........................
+  ........................
+  .....LTTTTTTTTTTTTTt....
+  ....LTTTTTTTTTTTTTTTt...
+  ...LttttttttttttttttTt..
+  ..LTTTTTTTTTTTTTTTTTTTt.
+  .tttttttttttttttttttttt.
+  ..gaaAaaaaAaaaaAaaaaAd..
+  ..gaaAaaLTTTTtaaaaaaAd..
+  ..gAAAAAgTgTgtAAAAAAAd..
+  ..gaAkkkaTgygTaAkkkaAd..
+  ..gaAkkkagTgTtaAkkkaAd..
+  ..gAAAAAAtttttAAAAAAAd..
+  ..gaaaAakkkkkkkaAaaaAd..
+  ..gaaaAakBBnBBkaAaaaAd..
+  ..gAAAAAkBBnBBkAAAAAAd..
+  ..gaAaaakBBnBBkaaaAaAd..
+  ..gaAaaakBByBBkaaaAaAd..
+  ..GGGGGGGGGGGGGGGGGGGGd.
+  ........................
+`);
+const barracks = {
+  w: 24, h: 22, fps: 6, kind: 'building',
+  anims: {
+    idle: [O(barracksBase)],
+    train: [
+      O(stamp(barracksBase, px(`
+        h...h
+        .....
+        ..h..
+      `), 8, 10), { skip: 'h' }),
+      O(stamp(barracksBase, px(`
+        .h.h.
+        h...h
+        .h.h.
+      `), 8, 10), { skip: 'h' }),
+      O(stamp(barracksBase, px(`
+        ......
+        ......
+        ......
+        ......
+        ......
+        ......
+        ......
+        ......
+        U....U
+        .U..U.
+      `), 8, 12), { skip: 'U' }),
+    ],
+  },
+};
+
+const bannerFrames = [
+  px(`
+    ..........
+    ..y.......
+    ..nLTTTT..
+    ..nTTTTTt.
+    ..nTTyTTt.
+    ..nTTTTt..
+    ..nTTt....
+    ..n.......
+    ..n.......
+    ..n.......
+    ..n.......
+    ..n.......
+    ..n.......
+    ..n.......
+    .gGd......
+    ..........
+  `),
+  px(`
+    ..........
+    ..y.......
+    ..nLTTT...
+    ..nTTTTTT.
+    ..nTTyTTt.
+    ..nTTTTTt.
+    ..nTTt.tt.
+    ..n.......
+    ..n.......
+    ..n.......
+    ..n.......
+    ..n.......
+    ..n.......
+    ..n.......
+    .gGd......
+    ..........
+  `),
+  px(`
+    ..........
+    ..y.......
+    ..nLTTTTT.
+    ..nTTTTTt.
+    ..nTTyTt..
+    ..nTTTTTt.
+    ..nTTTt...
+    ..n.......
+    ..n.......
+    ..n.......
+    ..n.......
+    ..n.......
+    ..n.......
+    ..n.......
+    .gGd......
+    ..........
+  `),
+];
+const banner = { w: 10, h: 16, fps: 6, kind: 'building', anims: { idle: bannerFrames.map((f) => O(f)) } };
+
+function scaffoldRows(stage) {
+  let r = blank(20, 20);
+  // brick walls rising with the build stage
+  if (stage >= 1) r = stamp(r, masonry(14, 5, { bw: 4 }), 3, 14);
+  if (stage >= 2) {
+    r = stamp(r, masonry(14, 10, { bw: 4 }), 3, 9);
+    r = stamp(r, px(`
+      ....LTTTTt....
+      ...LTTTTTTt...
+    `), 3, 6);
+  }
+  // timber scaffold in front
+  r = stamp(r, px(`
+    .b......b......b.
+    .b......b......b.
+    bbbbbbbbbbbbbbbbB
+    .B......B......B.
+    .b.....bb......b.
+    .b....b.b......b.
+    .b...b..b......b.
+    .b..b...b......b.
+    bbbbbbbbbbbbbbbbB
+    .B......B......B.
+    .b......b......b.
+    .b......b......b.
+    .b......b......b.
+    .b......b......b.
+    .B......B......B.
+  `), 1, 4);
+  // brick stack + ground
+  r = stamp(r, px(`
+    .aA.
+    aAaA
+  `), 15, 17);
+  return r;
+}
+const scaffold = {
+  w: 20, h: 20, fps: 1, kind: 'building',
+  anims: { idle: [0, 1, 2].map((s) => O(scaffoldRows(s))) },
+};
+scaffold.anims.build = scaffold.anims.idle;
+
+const nestBase = px(`
+  ........................
+  ........................
+  .........GGGGGG.........
+  ......ggGGGGGGGGGd......
+  .....gGGGGdddddGGGd.....
+  ....gGGGddkkkkkddGGd....
+  ...gGGGdkkkkkkkkkdGGd...
+  ...gGGdkkkkkkkkkkkdGd...
+  ..gGGGdkkkkkkkkkkkdGGd..
+  ..gGGdkkkkkkkkkkkkkdGd..
+  .gGGGdkkkkkkkkkkkkkdGGd.
+  .GGGddkkkkkkkkkkkkkddGd.
+  .uUu.dkkkkkkkkkkkkkduUu.
+  uuUuu.uUu..uUu..uUuUuUu.
+  .uUuUuuUuuuUuUuuUuUuUu..
+  ........................
+`);
+const nestEyes = (pairs) => dots(nestBase, pairs.flatMap(([x, y, c]) => [[x, y, c], [x + 3, y, c]]));
+const nest = {
+  w: 24, h: 16, fps: 3, kind: 'building',
+  anims: {
+    idle: [
+      O(nestEyes([[9, 8, 'r']])),
+      O(nestEyes([[9, 8, 'r']])),
+      O(nestEyes([[9, 8, 'R']])),
+      O(nestEyes([[10, 9, 'r']])),
+      O(nestBase),
+      O(nestEyes([[13, 7, 'y']])),
+    ],
+  },
+};
+
+// tribe worker
+const villagerBase = px(`
+  ..........
+  ...bbbb...
+  ..bbbbbB..
+  ..sossoS..
+  ..ssssSS..
+  ..LTTTTt..
+  .sLTTTtts.
+  ..TTTTtt..
+  ..nnnnnn..
+  ..BB..BB..
+  ..kk..kk..
+  ..........
+`);
+const villagerCarry = px(`
+  ..........
+  ..ayaayA..
+  .sAAAAAAs.
+  .LsossoSt.
+  .LssssSSt.
+  ..LTTTTt..
+  ..TTTTtt..
+  ..TTTTtt..
+  ..nnnnnn..
+  ..BB..BB..
+  ..kk..kk..
+  ..........
+`);
+const villager = troop({
+  name: 'villager', w: 10, h: 12, base: villagerBase, cx: 5, legs: [2, 7], head: 4,
+  attack: [
+    [[px(`
+      .gG
+      ..b
+      ..b
+      .s.
+    `), 6, 0], [px(`_`), 8, 6]],
+    [[px(`
+      ..s
+      ..b
+      .bgG
+    `), 6, 6], [px(`_`), 8, 6]],
+  ],
+  more: {
+    mine: [
+      [[px(`
+        .gG
+        ..b
+        ..b
+        .s.
+      `), 6, 0], [px(`_`), 8, 6]],
+      [[px(`
+        ..s
+        ..b
+        .bgG
+        ...h
+      `), 6, 6], [px(`_`), 8, 6]],
+    ],
+    carry: [
+      villagerCarry,
+      raiseLeg(villagerCarry, { legRows: 2, cx: 5, legs: [2, 7], side: 'L' }),
+      villagerCarry,
+      raiseLeg(villagerCarry, { legRows: 2, cx: 5, legs: [2, 7], side: 'R' }),
+    ],
+  },
+});
+
+const priestBase = px(`
+  ..........
+  ...wwww...
+  ..wwwwwg..
+  ..wossog..
+  ..wsSSSg..
+  ..wwTTwg..
+  .swwTTwgs.
+  ..wwTTwg..
+  ..wwTTwg..
+  .wwwTTwgg.
+  .yyyyyyYY.
+  ..........
+`);
+const priest = {
+  w: 10, h: 12, fps: 4, kind: 'troop',
+  anims: {
+    idle: [O(priestBase), O(breathe(priestBase, 4))],
+    walk: [O(priestBase), O(stamp(priestBase, px(`yyyy_yYY`), 1, 10)), O(priestBase), O(stamp(priestBase, px(`yyy_yyYY`), 1, 10))],
+    pray: [
+      O(stampAll(priestBase, [[px(`_`), 1, 6], [px(`_`), 8, 6], [px(`ss`), 4, 5], [px(`h`), 0, 3], [px(`h`), 9, 2]]), { skip: 'h' }),
+      O(stampAll(priestBase, [[px(`_`), 1, 6], [px(`_`), 8, 6], [px(`ss`), 4, 5], [px(`h.h`), 3, 0], [px(`h`), 0, 6], [px(`h`), 9, 5]]), { skip: 'h' }),
+      O(stampAll(priestBase, [[px(`_`), 1, 6], [px(`_`), 8, 6], [px(`ss`), 4, 5], [px(`.h.`), 3, 0], [px(`y`), 0, 4], [px(`y`), 9, 4]]), { skip: 'hy' }),
+    ],
+  },
+};
+
+// wildlife & monsters (neutral colours only)
+const wolfBase = px(`
+  ..............
+  .........g.g..
+  .gg.....gGgGd.
+  .gdG...gGoGGk.
+  ..dgddddGGGGw.
+  ..dGGGGGGGGd..
+  ..dGd.dGdGd...
+  ..Gd..Gd.Gd...
+  ..kk..kk.kk...
+  ..............
+`);
+const wolf = troop({
+  name: 'wolf', w: 14, h: 10, base: wolfBase, fps: 8, legRows: 3, cx: 6, legs: [2, 10],
+  walk: [
+    wolfBase,
+    stampAll(wolfBase, [[px(`
+      _dGd__dG_Gd_
+      _Gd___Gd_Gd_
+      _kk___kk_kk_
+    `), 1, 6], [px(`
+      .dG.d.dGd...
+      Gd..Gd..Gd..
+      k...kk..kk..
+    `), 1, 6]]),
+    wolfBase,
+    stampAll(wolfBase, [[px(`
+      _dGd__dG_Gd_
+      _Gd___Gd_Gd_
+      _kk___kk_kk_
+    `), 1, 6], [px(`
+      ..dGd..dGd..
+      ..Gd...Gd.Gd
+      ..kk...kk.kk
+    `), 1, 6]]),
+  ],
+  attack: [
+    // lunge: head low, jaws open
+    [[px(`
+      ___
+      gGGk
+      GGGw
+      GwGG
+    `), 9, 2]],
+    [[px(`
+      gGGkk
+      GGwww
+    `), 8, 3]],
+  ],
+});
+
+const banditBase = px(`
+  ............
+  ....nBBn....
+  ...nBBBBn...
+  ...BssssB.b.
+  ...kwkkwkbb.
+  ...sssSSBbB.
+  ...RRRRRRBn.
+  ..BnnnnnnB..
+  ..snnRRnnsn.
+  ...nnnnnn...
+  ...BBBnBB...
+  ...BB..BB...
+  ...kk..kk...
+  ............
+`);
+const bandit = troop({
+  name: 'bandit', w: 12, h: 14, base: banditBase, cx: 6, legs: [3, 8],
+  attack: [
+    // club raised
+    [[px(`
+      ..___
+      ..___
+      ..___
+      ..___
+      ..___
+    `), 8, 2], [px(`
+      .bb
+      bbB
+      .bB
+      ..n
+      ..s
+    `), 8, 0]],
+    // smash forward
+    [[px(`
+      ..___
+      ..___
+      ..___
+      ..___
+      ..___
+    `), 8, 2], [px(`
+      ...
+      ...
+      ...
+      ...
+      ...
+      ...
+      ...
+      sn..
+      .Bbb
+      .bbB
+    `), 8, 1]],
+  ],
+});
+
+// loot pickups (6x6)
+const faith_orb = still(6, 6, [
+  px(`
+    ......
+    ..yy..
+    .yhyY.
+    .yyyY.
+    ..YY..
+    ......
+  `),
+  px(`
+    ..h...
+    ..yy..
+    .yhyY.
+    .yyyYh
+    ..YY..
+    ......
+  `),
+  px(`
+    ......
+    h.yy..
+    .yhhY.
+    .yhyY.
+    ..YY.h
+    ......
+  `),
+], { kind: 'map', fps: 6 }, { skip: 'h' });
+const brick_orb = still(6, 6, [
+  px(`
+    ......
+    ......
+    .a.a..
+    .aaaA.
+    .AAAA.
+    ......
+  `),
+  px(`
+    ....h.
+    ......
+    .a.a..
+    .aaaA.
+    .AAAA.
+    ......
+  `),
+  px(`
+    ......
+    .....h
+    .y.a..
+    .aaaA.
+    .AAAA.
+    ......
+  `),
+], { kind: 'map', fps: 5 }, { skip: 'h' });
+const heart_orb = still(6, 6, [
+  px(`
+    rr..rr
+    rwrrrr
+    rrrrrR
+    .rrrR.
+    ..RR..
+    ......
+  `),
+  px(`
+    rr..rr
+    rwrrrr
+    rrrrrR
+    .rrrR.
+    ..RR..
+    ......
+  `).map((r) => r),
+], { kind: 'map', fps: 3 });
+heart_orb.anims.idle[1] = shift(heart_orb.anims.idle[1], 0, 0);
+
+/** Keys added for the Tiny Gods realm mode. */
+export const REALM_SPRITE_KEYS = Object.freeze([
+  'keep', 'house', 'temple', 'barracks', 'banner', 'scaffold', 'nest', 'villager', 'priest', 'wolf', 'bandit',
+  'faith_orb', 'brick_orb', 'heart_orb', 'ui_faith', 'ui_pop', 'ui_hammer', 'ui_horn', 'ui_shield',
+]);
+
+// =============================================================================================
 // ASSEMBLY
 // =============================================================================================
 
@@ -2640,6 +3299,8 @@ export const SPRITES = {
   cat, dragonpup, drone, slime, luckysheep, minigolem,
   // map objects
   brickpile, scorch,
+  // Tiny Gods realm
+  keep, house, temple, barracks, banner, scaffold, nest, villager, priest, wolf, bandit, faith_orb, brick_orb, heart_orb,
 };
 for (const [k, g] of Object.entries(ELEM_GEMS)) SPRITES[k] = { w: 8, h: 8, fps: 1, kind: 'icon', anims: { idle: [gemRows(g)] } };
 for (const [k, v] of Object.entries(WEAPONS)) SPRITES[k] = v;

@@ -67,10 +67,10 @@ export const MAX_CREATURES = 1500;
 export const SP = Object.freeze({ VILLAGER: 0, SHEEP: 1, WOLF: 2, CRAB: 3, FISH: 4, ZOMBIE: 5, SKELETON: 6, DRAGON: 7, UFO: 8 });
 export const SPECIES = [
   { key: 'villager', name: 'Villager', hp: 30, atk: 4, spd: 0.11, life: [45, 75], cap: 1500 },
-  { key: 'sheep', name: 'Sheep', hp: 14, atk: 0, spd: 0.07, life: [10, 16], cap: 260, animal: 1 },
+  { key: 'sheep', name: 'Sheep', hp: 14, atk: 0, spd: 0.07, life: [10, 16], cap: 170, animal: 1 },
   { key: 'wolf', name: 'Wolf', hp: 26, atk: 5, spd: 0.13, life: [10, 15], cap: 90, animal: 1 },
-  { key: 'crab', name: 'Crab', hp: 12, atk: 2, spd: 0.06, life: [8, 14], cap: 120, animal: 1 },
-  { key: 'fish', name: 'Fish', hp: 4, atk: 0, spd: 0.08, life: [4, 8], cap: 300, animal: 1, aquatic: 1 },
+  { key: 'crab', name: 'Crab', hp: 12, atk: 2, spd: 0.06, life: [8, 14], cap: 70, animal: 1 },
+  { key: 'fish', name: 'Fish', hp: 4, atk: 0, spd: 0.08, life: [4, 8], cap: 180, animal: 1, aquatic: 1 },
   { key: 'zombie', name: 'Zombie', hp: 40, atk: 5, spd: 0.06, life: [25, 35], cap: 400, monster: 1 },
   { key: 'skeleton', name: 'Skeleton', hp: 28, atk: 6, spd: 0.1, life: [40, 60], cap: 250, monster: 1 },
   { key: 'dragon', name: 'Dragon', hp: 420, atk: 9, spd: 0.17, life: [150, 250], cap: 8, monster: 1, flying: 1 },
@@ -81,22 +81,22 @@ export const SPECIES = [
 export const TRIBES = [
   {
     id: 0, key: 'brick', name: 'Brickfolk', color: '#8fa6c8', dark: '#4f5f7c', light: '#c8d6ec',
-    skin: '#f0c8a0', hair: '#3b3b4f', roof: '#5a6f96', roofDark: '#3d4c6b', wall: '#d8c6a8', wallDark: '#9c8a74',
+    skin: '#f0c8a0', hair: '#3b3b4f', roof: '#b5523a', roofDark: '#7e3426', wall: '#e6d8bc', wallDark: '#a8967a',
     aggression: 1.0, build: 1.35, hpMul: 1.0, atkMul: 1.0, spdMul: 1.0, blurb: 'Patient builders of tidy brick towns.',
   },
   {
     id: 1, key: 'ember', name: 'Emberkin', color: '#f0782f', dark: '#a8441a', light: '#ffb070',
-    skin: '#d89a6a', hair: '#7a1f10', roof: '#c4402a', roofDark: '#8a2a1a', wall: '#e8bd7a', wallDark: '#b0804a',
+    skin: '#d89a6a', hair: '#7a1f10', roof: '#5a2420', roofDark: '#3a1612', wall: '#d8a860', wallDark: '#9a6a34',
     aggression: 1.9, build: 1.0, hpMul: 1.0, atkMul: 1.25, spdMul: 1.05, fireRes: 0.5, blurb: 'Hot-headed raiders who love a fight.',
   },
   {
     id: 2, key: 'leaf', name: 'Leafkin', color: '#5fc24a', dark: '#2f7a2a', light: '#a8e88a',
-    skin: '#e8d0a0', hair: '#3a5a1a', roof: '#3f8f3a', roofDark: '#2a5f26', wall: '#9a6a3a', wallDark: '#6a4422',
+    skin: '#e8d0a0', hair: '#3a5a1a', roof: '#c9a04a', roofDark: '#8f6e2a', wall: '#7a5030', wallDark: '#4e321c',
     aggression: 0.55, build: 1.0, hpMul: 0.95, atkMul: 0.95, spdMul: 1.15, blurb: 'Gentle forest folk who plant as they chop.',
   },
   {
     id: 3, key: 'stone', name: 'Stoneborn', color: '#b07c50', dark: '#6a4a2e', light: '#d8b088',
-    skin: '#c8a888', hair: '#4a3a2a', roof: '#7a7068', roofDark: '#55504a', wall: '#a8988a', wallDark: '#6e6458',
+    skin: '#c8a888', hair: '#4a3a2a', roof: '#5e5a62', roofDark: '#3e3a42', wall: '#a8a49c', wallDark: '#6e6a64',
     aggression: 1.15, build: 1.1, hpMul: 1.3, atkMul: 1.1, spdMul: 0.9, blurb: 'Stubborn miners at home in the mountains.',
   },
 ];

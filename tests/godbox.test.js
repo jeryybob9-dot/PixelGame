@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { T, B, SP, H, IS_WATER, TICKS_PER_YEAR, MAX_CREATURES } from '../src/sandbox/constants.js';
-import { generateTerrain, generateHeight, landRatio, baseTileForHeight } from '../src/sandbox/worldgen.js';
+import { generateTerrain, landRatio, baseTileForHeight } from '../src/sandbox/worldgen.js';
 import { seedFromInput, hashString, makeRng, rnd } from '../src/sandbox/rng.js';
 import { createState } from '../src/sandbox/state.js';
 import { createWorld, tick, calendar } from '../src/sandbox/sim.js';

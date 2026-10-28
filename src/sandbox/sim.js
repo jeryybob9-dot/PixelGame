@@ -57,7 +57,7 @@ function populateAnimals(s) {
     const i = randomTile(s, (t) => t === T.SAND);
     if (i >= 0) spawnCreature(s, SP.CRAB, (i % s.w) + 0.5, ((i / s.w) | 0) + 0.5);
   }
-  for (let k = 0; k < Math.round(60 * scale); k++) {
+  for (let k = 0; k < Math.round(40 * scale); k++) {
     const i = randomTile(s, (t) => IS_WATER[t] === 1);
     if (i >= 0) spawnCreature(s, SP.FISH, (i % s.w) + 0.5, ((i / s.w) | 0) + 0.5);
   }

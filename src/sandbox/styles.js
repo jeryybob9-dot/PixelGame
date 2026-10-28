@@ -47,6 +47,7 @@ export const CSS = `
 .gb-tool span{max-width:54px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gb-tool.on{border-color:var(--gold,#ffcf4a);background:var(--panel-3,#3b3463);color:var(--ink,#f4efe6)}
 .gb-tool.toggle-off .gb-icon{opacity:.35}
+.gb-tool.toggle.on{border-color:var(--gem,#4ae3ff);background:var(--panel,#241f3a)}
 .gb-tabs{display:flex;gap:6px}
 .gb-tab{flex:1;padding:0 4px;font-family:var(--font-display,monospace);font-size:9px;letter-spacing:.5px;background:var(--panel,#241f3a);color:var(--ink-dim,#a79fc2)}
 .gb-tab.on{background:var(--panel-3,#3b3463);color:var(--gold,#ffcf4a);box-shadow:inset 0 -3px 0 var(--gold,#ffcf4a)}

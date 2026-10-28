@@ -12,7 +12,7 @@ import { iconCanvas } from './icons.js';
 import { iconSprite } from './sprites.js';
 import { CSS } from './styles.js';
 import { tileCss } from './palette.js';
-import { K, TASK_NAMES, weaponTier } from './creatures.js';
+import { TASK_NAMES, weaponTier } from './creatures.js';
 import * as storageModule from '../core/storage.js';
 
 const TABS = [
@@ -91,14 +91,14 @@ function iconEl(key, cls = '', o) {
   cv.className = 'gb-icon ' + cls;
   return cv;
 }
-function spriteIcon(sp, tribe = 0) {
+function spriteIcon(sp, tribe = 0, cls = 'sm') {
   const spr = iconSprite(sp, tribe);
   const cv = document.createElement('canvas');
   cv.width = 8;
   cv.height = 8;
   const c = cv.getContext('2d');
   c.drawImage(spr, Math.floor((8 - spr.width) / 2), Math.max(0, 8 - spr.height - 1));
-  cv.className = 'gb-icon sm';
+  cv.className = 'gb-icon ' + cls;
   return cv;
 }
 
@@ -199,7 +199,7 @@ export function mountGodBox(rootEl, { audio, storage, onExit } = {}) {
   const canvas = h('canvas', { class: 'gb-world', 'aria-label': 'World map' });
   root.append(canvas);
 
-  const yearEl = h('div', { class: 'gb-year', text: 'YEAR 1 · DAY 1' });
+  const yearEl = h('div', { class: 'gb-year', text: 'YEAR 1' });
   const aliveEl = h('div', { class: 'gb-alive', text: '' });
   const speedBtns = [];
   const pauseBtn = h('button', { class: 'gb-btn', 'aria-label': 'Pause', onclick: () => setPaused(!paused) }, iconEl('pause', 'md'));
@@ -272,7 +272,10 @@ export function mountGodBox(rootEl, { audio, storage, onExit } = {}) {
       if (id === 'borders') on = showBorders;
       if (id === 'names') on = showNames;
       b.classList.toggle('on', on);
-      if (id === 'borders' || id === 'names') b.classList.toggle('toggle-off', !on);
+      if (id === 'borders' || id === 'names') {
+        b.classList.add('toggle');
+        b.classList.toggle('toggle-off', !on);
+      }
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     }
     for (const [id, b] of Object.entries(tabBtns)) {
@@ -357,14 +360,16 @@ export function mountGodBox(rootEl, { audio, storage, onExit } = {}) {
     cam.y = state.h / 2 - (top + availH / 2) / z;
   }
   function clampCam() {
+    // Centre the world on an axis where it fits; otherwise allow a little overscroll past the bars.
     const vw = viewW() / cam.z;
     const vh = viewH() / cam.z;
-    const a = -vw * 0.5;
-    const b = state.w - vw * 0.5;
-    cam.x = clamp(cam.x, Math.min(a, b), Math.max(a, b));
-    const c = -vh * 0.5;
-    const d = state.h - vh * 0.5;
-    cam.y = clamp(cam.y, Math.min(c, d), Math.max(c, d));
+    const top = topBar.offsetHeight / cam.z;
+    const bottom = bottomBar.offsetHeight / cam.z;
+    const usableH = vh - top - bottom;
+    if (state.w <= vw) cam.x = (state.w - vw) / 2;
+    else cam.x = clamp(cam.x, -vw * 0.25, state.w - vw * 0.75);
+    if (state.h <= usableH) cam.y = state.h / 2 - (top + usableH / 2);
+    else cam.y = clamp(cam.y, -top - vh * 0.2, state.h - vh + bottom + vh * 0.2);
   }
   function zoomAt(sx, sy, factor) {
     const wx = cam.x + sx / cam.z;
@@ -612,7 +617,9 @@ export function mountGodBox(rootEl, { audio, storage, onExit } = {}) {
     playSfx('ui_click');
     renderInfo();
   }
+  const infoParts = { key: null };
   function closeInfo() {
+    infoParts.key = null;
     selected = null;
     following = false;
     info.classList.add('gb-hidden');
@@ -673,7 +680,7 @@ export function mountGodBox(rootEl, { audio, storage, onExit } = {}) {
         if (c.bless > 0) tags.push('<span class="gb-tag gold">Blessed</span>');
         if (c.held) tags.push('<span class="gb-tag bad">Being abducted</span>');
         if (tags.length) body += `<div class="gb-tags">${tags.join('')}</div>`;
-        icon = spriteIcon(c.sp, Math.max(0, c.tribe));
+        icon = spriteIcon(c.sp, Math.max(0, c.tribe), 'md');
         actions.push(infoButton(following ? 'Following' : 'Follow', () => {
           following = !following;
           playSfx('ui_click');
@@ -747,16 +754,30 @@ export function mountGodBox(rootEl, { audio, storage, onExit } = {}) {
       if (t === T.ORE) extra.push('<span class="gb-tag gold">Ore</span>');
       body = extra.length ? `<div class="gb-tags">${extra.join('')}</div>` : '';
     }
-    info.textContent = '';
-    const headEl = h('div', { class: 'gb-info-head' });
-    if (icon) headEl.append(icon);
-    const txt = h('div', { style: 'flex:1;min-width:0' });
-    txt.innerHTML = head;
-    headEl.append(txt, h('button', { class: 'gb-btn ghost', 'aria-label': 'Close', onclick: () => closeInfo() }, iconEl('close', 'md')));
-    const bodyEl = h('div');
-    bodyEl.innerHTML = body;
-    info.append(headEl, bodyEl);
-    if (actions.length) info.append(h('div', { class: 'gb-actions' }, actions));
+    // Update in place so buttons survive the periodic refresh (taps are never lost mid-render).
+    const selKey = `${sel.type}:${sel.id ?? sel.x + ',' + sel.y}`;
+    const actKey = actions.map((b) => b.textContent + b.className).join('|');
+    if (infoParts.key !== selKey) {
+      info.textContent = '';
+      const headEl = h('div', { class: 'gb-info-head' });
+      infoParts.icon = h('span', { style: 'display:contents' });
+      infoParts.txt = h('div', { style: 'flex:1;min-width:0' });
+      headEl.append(infoParts.icon, infoParts.txt, h('button', { class: 'gb-btn ghost', 'aria-label': 'Close', onclick: () => closeInfo() }, iconEl('close', 'md')));
+      infoParts.body = h('div');
+      infoParts.actions = h('div', { class: 'gb-actions' });
+      info.append(headEl, infoParts.body, infoParts.actions);
+      infoParts.key = selKey;
+      infoParts.head = infoParts.bodyHtml = infoParts.actKey = null;
+      if (icon) infoParts.icon.append(icon);
+    }
+    if (infoParts.head !== head) infoParts.txt.innerHTML = infoParts.head = head;
+    if (infoParts.bodyHtml !== body) infoParts.body.innerHTML = infoParts.bodyHtml = body;
+    if (infoParts.actKey !== actKey) {
+      infoParts.actKey = actKey;
+      infoParts.actions.textContent = '';
+      infoParts.actions.append(...actions);
+      infoParts.actions.classList.toggle('gb-hidden', !actions.length);
+    }
     info.classList.remove('gb-hidden');
     ticker.classList.add('gb-hidden');
   }
@@ -992,7 +1013,7 @@ export function mountGodBox(rootEl, { audio, storage, onExit } = {}) {
   let hudAt = 0;
   function refreshHud(force = false) {
     const cal = calendar(state.tick);
-    yearEl.textContent = `YEAR ${cal.year} · DAY ${cal.day}`;
+    yearEl.textContent = `YEAR ${cal.year}`;
     const c = state.counts;
     let animals = 0;
     let monsters = 0;
@@ -1001,7 +1022,7 @@ export function mountGodBox(rootEl, { audio, storage, onExit } = {}) {
     for (let t = 0; t < 4; t++) popEls[t].textContent = fmt(c.tribe[t]);
     animalNum.textContent = fmt(animals);
     monsterNum.textContent = fmt(monsters);
-    aliveEl.textContent = `${state.villages.size} villages · ${state.kingdoms.size} kingdoms`;
+    aliveEl.textContent = `Day ${cal.day} · ${state.villages.size} ${state.villages.size === 1 ? 'village' : 'villages'}`;
     const last = state.events[state.events.length - 1];
     if (last && (last.id !== lastEventId || force)) {
       lastEventId = last.id;
@@ -1130,6 +1151,17 @@ export function mountGodBox(rootEl, { audio, storage, onExit } = {}) {
     const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
     last = now;
     sfxThisFrame = 0;
+    // Adaptive quality: if frames stay slow, render the world at a lower pixel ratio.
+    if (dt > 0.024 && dt < 0.1) slowFrames++;
+    else if (slowFrames > 0) slowFrames -= 0.5;
+    if (slowFrames > 120) {
+      slowFrames = 0;
+      const eff = Math.min(window.devicePixelRatio || 1, maxRatio);
+      if (eff > 1.5) {
+        maxRatio = eff > 2 ? 2 : 1.5;
+        resize();
+      }
+    }
     try {
       updateEffects(now);
       if (!paused && !modalOpen) {
@@ -1187,10 +1219,12 @@ export function mountGodBox(rootEl, { audio, storage, onExit } = {}) {
   }
 
   // ---- sizing --------------------------------------------------------------------------------------
+  let maxRatio = 3;
+  let slowFrames = 0;
   function resize() {
     const w = root.clientWidth;
     const hh = root.clientHeight;
-    renderer.resize(w, hh, Math.min(window.devicePixelRatio || 1, 3));
+    renderer.resize(w, hh, Math.min(window.devicePixelRatio || 1, maxRatio));
     layoutPanels();
     clampCam();
   }

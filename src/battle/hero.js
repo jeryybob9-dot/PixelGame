@@ -1,7 +1,6 @@
 // The player-steered hero: weapon firing, forms, spells, gadgets, and its pet.
 
 import { dist, dist2, clamp, angleTo } from '../core/util.js';
-import { ARENA_W, ARENA_H, RIVER_TOP, RIVER_BOTTOM, inRiver, onBridge } from './constants.js';
 import { HEROES, HERO_BASE, FORM_MULT, FORM_SPEED, FORM_COST } from '../data/heroes.js';
 import { WEAPONS, weaponLevelMult } from '../data/weapons.js';
 import { GADGETS, PETS } from '../data/gadgets.js';
@@ -72,7 +71,7 @@ export function createHero(B, team, setup) {
 // Heroes hit troops a little softer than their stats suggest but are great at sieging towers.
 export const HERO_DMG_SCALE = 0.75;
 export const HERO_BUILDING_BONUS = 1.6;
-export const heroDamageMult = (h) => HERO_DMG_SCALE * h.km * FORM_MULT[h.form - 1] * weaponLevelMult(h.weaponLevel);
+export const heroDamageMult = (h) => HERO_DMG_SCALE * h.km * FORM_MULT[h.form - 1] * weaponLevelMult(h.weaponLevel) * (h.dmgBoost || 1);
 const heroSpeed = (h) => (HERO_BASE.speed + FORM_SPEED[h.form - 1]) * (h.def.passive.speedMult || 1) * (h.weapon.mobility || 1);
 const spellMult = (h) => h.km * (1 + (h.form - 2) * 0.15);
 
@@ -136,7 +135,7 @@ export function updateHero(B, h, dt) {
     if (d.t <= 0) {
       h.dash = null;
       h.jumping = false;
-      landSafely(h);
+      landSafely(B, h);
     }
     return;
   }
@@ -154,14 +153,24 @@ export function updateHero(B, h, dt) {
   let tgt = h.focus && h.focus.alive && canTarget(h, h.focus) ? h.focus : null;
   if (!tgt) h.focus = null;
   const meleeAggro = range < 2;
-  if (!tgt && !h.moveTo) tgt = autoTarget(B, h, meleeAggro ? 3.5 : range + 0.4);
+  if (!tgt && !h.moveTo && !h.joy) tgt = autoTarget(B, h, meleeAggro ? 3.5 : range + 0.4);
+  else if (!tgt && h.joy) tgt = autoTarget(B, h, range + 0.05);
   else if (!tgt && h.moveTo) tgt = autoTarget(B, h, range);
 
-  // movement
-  if (h.moveTo) {
+  // movement: joystick > move order > chase the target a little
+  const joy = h.joy && Math.hypot(h.joy.x, h.joy.y) > 0.12 ? h.joy : null;
+  if (joy) {
+    const m = Math.hypot(joy.x, joy.y);
+    const sp = heroSpeed(h) * statusMult(h) * Math.min(1, m) * (B.speedAt ? B.speedAt(h.x, h.y) : 1) * dt;
+    h.x += (joy.x / m) * sp;
+    h.y += (joy.y / m) * sp;
+    if (Math.abs(joy.x) > 0.15) h.facing = joy.x < 0 ? -1 : 1;
+    h.moving = true;
+    h.moveTo = null;
+  } else if (h.moveTo) {
     const arrived = !moveTowardHero(B, h, h.moveTo.x, h.moveTo.y, dt);
     if (arrived) h.moveTo = null;
-  } else if (tgt && edgeDist(h, tgt) > range) {
+  } else if (tgt && edgeDist(h, tgt) > range && !h.joy) {
     moveTowardHero(B, h, tgt.x, tgt.y, dt);
   }
   h.anim = h.moving ? 'walk' : 'idle';
@@ -177,7 +186,7 @@ export function updateHero(B, h, dt) {
     if (h.moving && h.moveTo) {
       h.aim = angleTo(h.x, h.y, h.moveTo.x, h.moveTo.y);
       h.facing = Math.cos(h.aim) < 0 ? -1 : 1;
-    }
+    } else if (joy) h.aim = Math.atan2(joy.y, joy.x);
     // auto reload when idle and not full
     if (w.mag && h.ammo < w.mag && h.reloadT <= 0 && !tgt) h.reloadT = w.reload * 0.5;
   }
@@ -191,10 +200,10 @@ function moveTowardHero(B, h, tx, ty, dt) {
   return moved;
 }
 
-function landSafely(h) {
-  if (inRiver(h.y) && !onBridge(h.x)) h.y = h.y < (RIVER_TOP + RIVER_BOTTOM) / 2 ? RIVER_TOP - 0.1 : RIVER_BOTTOM + 0.1;
-  h.x = clamp(h.x, 0.5, ARENA_W - 0.5);
-  h.y = clamp(h.y, 0.5, ARENA_H - 0.5);
+function landSafely(B, h) {
+  h.x = clamp(h.x, 0.5, B.W - 0.5);
+  h.y = clamp(h.y, 0.5, B.H - 0.5);
+  B.landSafely(h);
 }
 
 function fireWeapon(B, h, tgt, dt) {
@@ -450,8 +459,8 @@ export function useGadget(B, h) {
       break;
     case 'jetpack': {
       const a = h.moveTo ? angleTo(h.x, h.y, h.moveTo.x, h.moveTo.y) : h.aim;
-      const tx = clamp(h.x + Math.cos(a) * 3.5, 0.6, ARENA_W - 0.6);
-      const ty = clamp(h.y + Math.sin(a) * 3.5, 0.6, ARENA_H - 0.6);
+      const tx = clamp(h.x + Math.cos(a) * 3.5, 0.6, B.W - 0.6);
+      const ty = clamp(h.y + Math.sin(a) * 3.5, 0.6, B.H - 0.6);
       h.dash = { x: tx, y: ty, t: 0.28, a };
       h.jumping = true;
       h.status.invuln = 0.6;
@@ -467,7 +476,7 @@ export function useGadget(B, h) {
       break;
     }
     case 'turret': {
-      const tx = clamp(h.x + (h.team === 0 ? 0.6 : -0.6), 0.6, ARENA_W - 0.6);
+      const tx = clamp(h.x + (h.team === 0 ? 0.6 : -0.6), 0.6, B.W - 0.6);
       B.spawnBuilding(h.team, 'turret', tx, h.y, 1, { lifetime: 14, hp: 300 * km, dmg: 20 * km, deployT: 0.4 });
       B.sfx('build');
       break;

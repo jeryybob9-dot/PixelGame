@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#14121f">
+<title>God Box Test</title>
+<link rel="stylesheet" href="../src/ui/styles.css">
+<style>
+  html, body { height: 100%; margin: 0; background: #14121f; }
+  #app { position: fixed; inset: 0; overflow: hidden; }
+  .exited { position: fixed; inset: 0; display: flex; flex-direction: column; gap: 16px; align-items: center; justify-content: center;
+    color: #f4efe6; font-family: system-ui, sans-serif; }
+  .exited button { min-height: 44px; padding: 0 20px; border-radius: 10px; border: 0; background: #ffcf4a; font-size: 16px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+import { mountGodBox } from '../src/sandbox/godbox.js';
+import * as storage from '../src/core/storage.js';
+
+// Stub audio that only logs, so the page works without the real audio module.
+const audio = {
+  unlock() { console.log('[audio] unlock'); },
+  sfx(name, opts) { console.log('[sfx]', name, opts?.volume != null ? `vol ${opts.volume.toFixed(2)}` : ''); },
+  music(theme) { console.log('[music]', theme); },
+};
+
+const app = document.getElementById('app');
+function start() {
+  app.textContent = '';
+  const gb = mountGodBox(app, {
+    audio,
+    storage,
+    onExit() {
+      console.log('[godbox] exit');
+      gb.destroy();
+      window.__godbox = null;
+      const box = document.createElement('div');
+      box.className = 'exited';
+      box.innerHTML = '<div>Left the God Box.</div>';
+      const again = document.createElement('button');
+      again.textContent = 'Enter again';
+      again.onclick = () => { box.remove(); start(); };
+      box.append(again);
+      document.body.append(box);
+    },
+  });
+  window.__godbox = gb;
+}
+start();
+</script>
+</body>
+</html>

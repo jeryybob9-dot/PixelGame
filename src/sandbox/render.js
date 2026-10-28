@@ -30,6 +30,7 @@ export function createRenderer(canvas) {
   let H = 1;
   let dpr = 1;
   let labelFont = '"Pixelify Sans", system-ui, sans-serif';
+  let curZ = 2;
   const drawList = [];
   const fireBuckets = [[], [], []];
 
@@ -143,6 +144,7 @@ export function createRenderer(canvas) {
       rebuildSparkles();
     }
     const k = cam.z * dpr;
+    curZ = cam.z;
     const ox = Math.round((-cam.x * cam.z + o.shakeX) * dpr);
     const oy = Math.round((-cam.y * cam.z + o.shakeY) * dpr);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -211,6 +213,10 @@ export function createRenderer(canvas) {
     }
     drawList.sort((a, b) => a._sy - b._sy);
 
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    for (const e of drawList) {
+      if (e.type === undefined && e.sp !== SP.FISH && !e.held) ctx.fillRect(e._rx - 1.5, e._ry - 0.1, 3, 0.7);
+    }
     const frame = ((time * 6) | 0) % 2;
     for (const e of drawList) {
       if (e.type !== undefined) drawBuilding(e, frame, o);
@@ -250,9 +256,14 @@ export function createRenderer(canvas) {
     for (const c of s.clouds) {
       if (!inView(c.x, c.y, c.r + 6)) continue;
       const fade = Math.max(0, Math.min(1, c.ttl / 40, (c.max - c.ttl) / 15));
-      ctx.globalAlpha = fade * 0.92;
       const cw = c.r * 2.4;
       const ch = cw * (7 / 16);
+      ctx.globalAlpha = fade * 0.35;
+      ctx.fillStyle = '#0a0814';
+      ctx.beginPath();
+      ctx.ellipse(c.x, c.y + c.r * 0.35, c.r * 0.95, c.r * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = fade * (c.kind === 'fallout' ? 0.7 : 0.92);
       const fallCol = c.kind === 'rain' ? 'rgba(170,205,255,0.85)' : c.kind === 'plague' ? 'rgba(150,230,90,0.8)' : 'rgba(110,104,96,0.85)';
       ctx.fillStyle = fallCol;
       const drops = Math.round(c.r * 3);
@@ -337,6 +348,8 @@ export function createRenderer(canvas) {
       ctx.fillRect(b.x, b.y + b.h - cv.height * 0.6, b.w, 0.3);
       return;
     }
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(b.x + 0.4, b.y + b.h - 0.2, b.w, 0.6);
     ctx.drawImage(cv, dx, dy);
     if (b.hp < b.mhp * 0.5) {
       ctx.fillStyle = '#1a1414';
@@ -366,7 +379,8 @@ export function createRenderer(canvas) {
     const dy = y - cv.height + 0.5;
     if (c.sp === SP.FISH) {
       const deep = s.tile[(c.y | 0) * s.w + (c.x | 0)] === 0;
-      ctx.globalAlpha = deep ? 0.45 : 0.8;
+      if (curZ < 3.2 && (deep || curZ < 2)) return;
+      ctx.globalAlpha = (deep ? 0.35 : 0.6) * Math.min(1, curZ / 4);
       ctx.drawImage(cv, dx, dy);
       ctx.globalAlpha = 1;
       return;
@@ -531,13 +545,18 @@ export function createRenderer(canvas) {
     ctx.font = `${size}px ${labelFont}`;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
-    for (const v of s.villages.values()) {
+    const placed = [];
+    const vills = [...s.villages.values()].sort((a, b) => b.pop - a.pop);
+    for (const v of vills) {
       const sx = (v.x - cam.x) * cam.z + o.shakeX;
       const sy = (v.y - 6.5 - cam.y) * cam.z + o.shakeY;
       if (sx < -80 || sx > W + 80 || sy < -20 || sy > H + 20) continue;
       const kd = s.kingdoms.get(v.kd);
       const text = `${v.name} ${v.pop}`;
       const tw = ctx.measureText(text).width + 10;
+      const box = [sx - tw / 2, sy - size * 0.7, sx + tw / 2, sy + size * 0.7];
+      if (placed.some((p) => box[0] < p[2] && box[2] > p[0] && box[1] < p[3] && box[3] > p[1])) continue;
+      placed.push(box);
       ctx.fillStyle = 'rgba(20,18,31,0.78)';
       ctx.fillRect(Math.round(sx - tw / 2), Math.round(sy - size * 0.7), Math.round(tw), Math.round(size * 1.4));
       ctx.fillStyle = kd ? kd.color : '#ffffff';

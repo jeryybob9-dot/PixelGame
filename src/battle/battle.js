@@ -6,7 +6,7 @@ import { dist2, clamp } from '../core/util.js';
 import {
   ARENA_W, ARENA_H, MATCH_TIME, DOUBLE_ELIXIR_AT, OVERTIME, ELIXIR_MAX, ELIXIR_START, ELIXIR_SECONDS,
   BRICKS_START, BRICK_TRICKLE, TOWER_ELEMENT_COST, HERO_KILL_BRICKS, TOWER_KILL_BRICKS,
-  towerLayout, brickPiles, deployZones, inZones, clampToZones, inRiver, onBridge,
+  towerLayout, brickPiles, deployZones, inZones, clampToZones, inRiver, onBridge, RIVER_TOP, RIVER_BOTTOM,
 } from './constants.js';
 import { CARDS, unitDef, levelMult, EXTRA_UNITS } from '../data/cards.js';
 import { TOWERS, kingMult } from '../data/progression.js';
@@ -68,13 +68,24 @@ export class Battle {
     this.emotes = [];
     this.shakeT = 0;
     this.whiteFlash = 0;
-    this.fireGrid = new Float32Array(ARENA_W * ARENA_H);
-    this.fireDps = new Float32Array(ARENA_W * ARENA_H);
-    this.fireTeam = new Int8Array(ARENA_W * ARENA_H);
-    this.wasteGrid = new Float32Array(ARENA_W * ARENA_H);
-    this.piles = brickPiles().filter((p) => this.mode !== 'waves' || p.team === 0);
-
+    this.initWorld(opts);
+    this.fireGrid = new Float32Array(this.W * this.H);
+    this.fireDps = new Float32Array(this.W * this.H);
+    this.fireTeam = new Int8Array(this.W * this.H);
+    this.wasteGrid = new Float32Array(this.W * this.H);
     this.players = opts.players.map((s, team) => (s ? this.makePlayer(team, s) : null));
+    this.setupSides(opts);
+  }
+
+  /** Map size and static map objects (subclasses build other worlds). */
+  initWorld() {
+    this.W = ARENA_W;
+    this.H = ARENA_H;
+    this.piles = brickPiles().filter((p) => this.mode !== 'waves' || p.team === 0);
+  }
+
+  /** Towers and heroes for both sides. */
+  setupSides() {
     for (let team = 0; team < 2; team++) {
       const p = this.players[team];
       if (!p) continue;
@@ -187,8 +198,8 @@ export class Battle {
       cardId: card ? cardOrUnitId : extra.cardId || cardOrUnitId,
       sprite: u.sprite,
       team,
-      x: clamp(x, 0.4, ARENA_W - 0.4),
-      y: clamp(y, 0.4, ARENA_H - 0.4),
+      x: clamp(x, 0.4, this.W - 0.4),
+      y: clamp(y, 0.4, this.H - 0.4),
       r: u.radius || 0.4,
       h: (u.radius || 0.4) * 2.2,
       big: (u.radius || 0.4) >= 0.7,
@@ -242,8 +253,8 @@ export class Battle {
       cardId: cardOrId,
       sprite: b.sprite || cardOrId,
       team,
-      x: clamp(x, 0.6, ARENA_W - 0.6),
-      y: clamp(y, 0.6, ARENA_H - 0.6),
+      x: clamp(x, 0.6, this.W - 0.6),
+      y: clamp(y, 0.6, this.H - 0.6),
       r: b.radius || 0.5,
       h: cardOrId === 'bricktower' ? 1.5 : 1.1,
       hp,
@@ -288,7 +299,7 @@ export class Battle {
     const card = CARDS[cardId];
     if (!card) return null;
     if (card.type === 'spell' && !card.spell.ownSideOnly) {
-      return { x: clamp(x, 0.5, ARENA_W - 0.5), y: clamp(y, 0.5, ARENA_H - 0.5) };
+      return { x: clamp(x, 0.5, this.W - 0.5), y: clamp(y, 0.5, this.H - 0.5) };
     }
     const zones = this.zonesFor(team);
     let pt = inZones(zones, x, y) ? { x, y } : clampToZones(zones, x, y);
@@ -310,7 +321,7 @@ export class Battle {
   }
 
   isWasteland(x, y) {
-    const i = Math.floor(y) * ARENA_W + Math.floor(x);
+    const i = Math.floor(y) * this.W + Math.floor(x);
     return this.wasteGrid[i] > 0;
   }
 
@@ -367,7 +378,7 @@ export class Battle {
   heroMove(team, x, y) {
     const h = this.players[team]?.hero;
     if (!h || !h.alive) return;
-    h.moveTo = { x: clamp(x, 0.5, ARENA_W - 0.5), y: clamp(y, 0.5, ARENA_H - 0.5) };
+    h.moveTo = { x: clamp(x, 0.5, this.W - 0.5), y: clamp(y, 0.5, this.H - 0.5) };
     h.focus = null;
     if (!this.players[team].isAI) this.emit('heroMoveCmd', { team });
   }
@@ -595,6 +606,11 @@ export class Battle {
     this.checkEnd();
   }
 
+  /** Put a hero that landed from a dash or jump back on solid ground. */
+  landSafely(h) {
+    if (inRiver(h.y) && !onBridge(h.x)) h.y = h.y < (RIVER_TOP + RIVER_BOTTOM) / 2 ? RIVER_TOP - 0.1 : RIVER_BOTTOM + 0.1;
+  }
+
   kingAlive(team) {
     return this.towers.some((t) => t.team === team && t.type === 'king' && t.alive);
   }
@@ -644,8 +660,8 @@ export class Battle {
       any = true;
       g[i] -= dt;
       if (this.settings.particles !== 'low' && Math.random() < dt * 5) {
-        const x = (i % ARENA_W) + Math.random();
-        const y = Math.floor(i / ARENA_W) + Math.random();
+        const x = (i % this.W) + Math.random();
+        const y = Math.floor(i / this.W) + Math.random();
         this.fx.push({ x, y, vx: (Math.random() - 0.5) * 0.4, vy: -1.5 - Math.random(), life: 0.5, max: 0.5, color: Math.random() < 0.5 ? '#ff7a2e' : '#ffd166', size: 2, kind: 'fire' });
       }
     }
@@ -655,7 +671,7 @@ export class Battle {
     this.groundTick = 0.25;
     for (const e of this.entities) {
       if (!e.alive || e.flying || e.kind === 'tower') continue;
-      const i = Math.floor(e.y) * ARENA_W + Math.floor(e.x);
+      const i = Math.floor(e.y) * this.W + Math.floor(e.x);
       if (g[i] > 0 && this.fireTeam[i] !== e.team) damage(this, e, this.fireDps[i] * 0.25, { effects: { burn: { dps: 8, dur: 1 } } });
     }
   }
@@ -663,10 +679,10 @@ export class Battle {
   igniteGround(x, y, r, dur, dps, team) {
     for (let ty = Math.floor(y - r); ty <= Math.ceil(y + r); ty++) {
       for (let tx = Math.floor(x - r); tx <= Math.ceil(x + r); tx++) {
-        if (tx < 0 || ty < 0 || tx >= ARENA_W || ty >= ARENA_H) continue;
+        if (tx < 0 || ty < 0 || tx >= this.W || ty >= this.H) continue;
         if ((tx + 0.5 - x) ** 2 + (ty + 0.5 - y) ** 2 > r * r) continue;
-        if (inRiver(ty + 0.5)) continue;
-        const i = ty * ARENA_W + tx;
+        if (!this.canBurn(tx, ty)) continue;
+        const i = ty * this.W + tx;
         this.fireGrid[i] = Math.max(this.fireGrid[i], dur * (0.7 + Math.random() * 0.5));
         this.fireDps[i] = dps;
         this.fireTeam[i] = team;
@@ -674,12 +690,16 @@ export class Battle {
     }
   }
 
+  canBurn(tx, ty) {
+    return !inRiver(ty + 0.5);
+  }
+
   wasteland(x, y, r, dur) {
     for (let ty = Math.floor(y - r); ty <= Math.ceil(y + r); ty++) {
       for (let tx = Math.floor(x - r); tx <= Math.ceil(x + r); tx++) {
-        if (tx < 0 || ty < 0 || tx >= ARENA_W || ty >= ARENA_H) continue;
+        if (tx < 0 || ty < 0 || tx >= this.W || ty >= this.H) continue;
         if ((tx + 0.5 - x) ** 2 + (ty + 0.5 - y) ** 2 > r * r) continue;
-        this.wasteGrid[ty * ARENA_W + tx] = dur;
+        this.wasteGrid[ty * this.W + tx] = dur;
       }
     }
   }

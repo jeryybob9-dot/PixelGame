@@ -601,7 +601,10 @@ function thinkNomad(s, c) {
   if (s.tick - band.t >= band.wait) {
     band.tries = (band.tries || 0) + 1;
     if (band.settle && band.tries > 4) band.settle = 0;
-    const site = civ.findVillageSite(s, c.x, c.y, 8);
+    // A lone wanderer only settles after searching for company for a few days.
+    const company = countNear(s, c.x, c.y, 8, (o) => o.band === band.id && o.sp === SP.VILLAGER && !o.vil);
+    const lonely = company < 2 && s.tick - (band.born ?? 0) < TICKS_PER_DAY * 4;
+    const site = lonely ? null : civ.findVillageSite(s, c.x, c.y, 8);
     if (site) {
       const v = civ.foundVillage(s, c, site.x, site.y);
       if (v) {
@@ -692,7 +695,7 @@ function thinkSheep(s, c) {
     if (wolf) return fleeFrom(s, c, wolf);
   }
   if (c.task === K.IDLE && rand(s) < 0.35) wanderNear(s, c, c.x, c.y, 4);
-  breed(s, c, 0.006, 6, 7);
+  breed(s, c, 0.005, 6, 5);
 }
 
 function thinkWolf(s, c) {
@@ -774,8 +777,8 @@ function thinkDragon(s, c) {
     if (c.task === K.FLY && rand(s) < 0.01) c.task = K.IDLE;
     else return;
   }
-  if (c.task !== K.IDLE && c.task !== K.WANDER) return;
-  if (rand(s) < 0.5) {
+  if (c.task !== K.IDLE) return;
+  if (rand(s) < 0.35) {
     const opts = [];
     for (const v of s.villages.values()) if (Math.hypot(v.x - c.x, v.y - c.y) < 70) opts.push(v);
     if (opts.length) {
@@ -808,7 +811,7 @@ function dragonBreath(s, c) {
   if (c.tt % 3 === 0) {
     const px = c.x + c.dir * 2.5;
     const py = c.y + 2;
-    igniteDisc(s, px, py, 2.2, 0.45, 60);
+    igniteDisc(s, px, py, 2.2, 0.3, 60);
     fx(s, { k: 'p', kind: 'fire', x: px, y: py - 1, n: 5 });
     forEachNear(s, px, py, 2.6, (o) => {
       if (o !== c && !o.fly) {
@@ -824,13 +827,16 @@ function dragonBreath(s, c) {
       const bid = s.bmap[y * s.w + x];
       if (bid) {
         const b = s.buildings.get(bid);
-        if (b) civ.damageBuilding(s, b, 12, 'dragon');
+        if (b) civ.damageBuilding(s, b, 5, 'dragon');
       }
     }
   }
   if (c.tt <= 0) {
     c.low = 0;
-    c.task = K.IDLE;
+    // Fly off and rest before the next attack.
+    c.task = K.WANDER;
+    c.tx = Math.max(2, Math.min(s.w - 2, c.x + randRange(s, -40, 40)));
+    c.ty = Math.max(2, Math.min(s.h - 2, c.y + randRange(s, -40, 40)));
   }
 }
 

@@ -62,8 +62,8 @@ const ART = {
     ['.g..G', 'ggggG', '.ggg.', 'd...d'],
   ],
   crab: [
-    ['r...r', '.rer.', 'r.r.r'],
-    ['.r.r.', 'rrerr', '.r.r.'],
+    ['r...r', 'RReRR', '.R.R.'],
+    ['.r.r.', 'RReRR', 'R...R'],
   ],
   fish: [
     ['.oo', 'oo.'],
@@ -106,13 +106,14 @@ const ART = {
 const BASE_PAL = {
   G: '#ffcf4a', m: '#b9c3cf', g: '#d8d8d8',
   w: '#f4f1ea', W: '#d8d2c8', k: '#3a3238',
-  e: '#2a1a14', r: '#e0503a', o: '#f2a33a',
+  e: '#2a1a14', r: '#ff7a5a', R: '#c8402c', o: '#f2a33a',
   u: '#4a5a7a', z: '#7fbf5f', b: '#ece8dc',
   D: '#c43a2a', d: '#7a1f18', y: '#ffcf4a',
   c: '#7fe8ff', M: '#6a7488', l: '#ffef6a',
 };
 const WOLF_PAL = { ...BASE_PAL, g: '#8a8a96', G: '#6a6a76', d: '#4a4a54' };
 const SKEL_PAL = { ...BASE_PAL, k: '#6a6458' };
+const FISH_PAL = { ...BASE_PAL, o: '#cfe6f5' };
 const DRAGON_PAL = { ...BASE_PAL, w: '#f08a3a' };
 const UFO_PAL = { ...BASE_PAL, m: '#a8b4c8' };
 
@@ -157,7 +158,7 @@ export function creatureSprite(c, frame, o = {}) {
       break;
     case SP.FISH:
       art = ART.fish;
-      pal = BASE_PAL;
+      pal = FISH_PAL;
       key = 'fish';
       break;
     case SP.ZOMBIE:

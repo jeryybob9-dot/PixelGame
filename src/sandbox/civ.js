@@ -45,7 +45,6 @@ export function kingdomVillages(s, kd) {
   return out;
 }
 
-const kname = (s, kd) => s.kingdoms.get(kd)?.name || 'the wilds';
 const kcolor = (s, kd) => s.kingdoms.get(kd)?.color || null;
 
 // ---- buildings ---------------------------------------------------------------------------------
@@ -113,7 +112,7 @@ export function removeBuilding(s, b, cause = '') {
 }
 
 export function damageBuilding(s, b, amt, cause = '') {
-  if (b.type === BT.HALL && cause === 'fire') amt *= 0.3;
+  if (b.type === BT.HALL && (cause === 'fire' || cause === 'dragon')) amt *= cause === 'fire' ? 0.3 : 0.5;
   b.hp -= amt;
   if (b.hp <= 0) removeBuilding(s, b, cause);
 }
@@ -257,7 +256,7 @@ export function releaseTerritory(s, v) {
 }
 
 function newBand(s, leader, kd, extra = {}) {
-  const band = { id: s.nextBand++, leader: leader.id, t: s.tick, wait: TICKS_PER_DAY, vid: 0, kd, settle: 0, tx: 0, ty: 0, ...extra };
+  const band = { id: s.nextBand++, leader: leader.id, t: s.tick, born: s.tick, wait: TICKS_PER_DAY, vid: 0, kd, settle: 0, tx: 0, ty: 0, ...extra };
   s.bands.set(band.id, band);
   return band;
 }

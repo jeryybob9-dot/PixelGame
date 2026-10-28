@@ -1,7 +1,6 @@
 // Damage, healing, status effects, projectiles, spell areas and deaths.
 
 import { dist, dist2, clamp, angleTo } from '../core/util.js';
-import { ARENA_W, ARENA_H } from './constants.js';
 import { levelMult } from '../data/cards.js';
 
 export const isBuildingKind = (e) => e.kind === 'building' || e.kind === 'tower';
@@ -93,8 +92,9 @@ export function applyEffects(B, t, fx, src) {
   if (fx.knockback && !building && !t.flying && (t.mass || 1) < 15 && src) {
     const a = angleTo(src.x, src.y, t.x, t.y);
     const k = fx.knockback / Math.max(1, (t.mass || 1) / 4);
-    t.x = clamp(t.x + Math.cos(a) * k, 0.4, ARENA_W - 0.4);
-    t.y = clamp(t.y + Math.sin(a) * k, 0.4, ARENA_H - 0.4);
+    t.x = clamp(t.x + Math.cos(a) * k, 0.4, B.W - 0.4);
+    t.y = clamp(t.y + Math.sin(a) * k, 0.4, B.H - 0.4);
+    B.constrain?.(t);
   }
 }
 
@@ -162,7 +162,8 @@ export function kill(B, e, src) {
   if (!e.alive) return;
   e.alive = false;
   e.hp = 0;
-  const enemy = 1 - e.team;
+  // wild creatures (team 2) pay their bounty to whoever killed them
+  const enemy = e.team === 2 ? (src?.team ?? -1) : 1 - e.team;
   if (e.kind === 'tower') {
     B.onTowerDestroyed(e, src);
     return;
@@ -183,7 +184,7 @@ export function kill(B, e, src) {
     B.stat(enemy, 'kills', 1);
     if (src?.kind === 'hero') B.stat(enemy, 'heroKills', 1);
   }
-  if (e.kind === 'troop') B.sfx('unit_die', { volume: 0.5, pitch: 0.9 + Math.random() * 0.3 });
+  if (e.kind === 'troop' || e.kind === 'villager') B.sfx('unit_die', { volume: 0.5, pitch: 0.9 + Math.random() * 0.3 });
   else B.sfx('explosion_small', { volume: 0.6 });
 
   const sp = e.special || {};
@@ -208,6 +209,7 @@ export function kill(B, e, src) {
   if (e.spawn?.onDeath) {
     for (let i = 0; i < e.spawn.onDeath; i++) B.spawnUnit(e.team, e.spawn.unit, e.x + (i - 1) * 0.6, e.y + 0.5, e.level, { deployT: 0.2 });
   }
+  B.onKill?.(e, src);
 }
 
 // ───────────────────────── projectiles ─────────────────────────
@@ -256,7 +258,7 @@ export function updateProjectiles(B, dt) {
           (p.hit ||= new Set()).add(e);
         }
       }
-      if (p.travel >= p.maxDist || p.x < -1 || p.x > ARENA_W + 1 || p.y < -1 || p.y > ARENA_H + 1) p.alive = false;
+      if (p.travel >= p.maxDist || p.x < -1 || p.x > B.W + 1 || p.y < -1 || p.y > B.H + 1) p.alive = false;
       continue;
     }
     if (p.target && p.target.alive && !p.lob) {
@@ -454,7 +456,7 @@ export function castSpell(B, team, card, x, y, level) {
     case 'wall': {
       const n = s.width;
       for (let i = 0; i < n; i++) {
-        const wx = clamp(x + (i - (n - 1) / 2), 0.6, ARENA_W - 0.6);
+        const wx = clamp(x + (i - (n - 1) / 2), 0.6, B.W - 0.6);
         B.spawnBuilding(team, 'wall', wx, y, level, { hp: s.hp * m, lifetime: s.lifetime, isWall: true, deployT: 0.25 + i * 0.06 });
       }
       B.sfx('build');

@@ -2,12 +2,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { SPRITES, SPRITE_PROBLEMS, REQUIRED_KEYS, HEROES, HERO_W, HERO_H, heroOverlay } from '../src/art/sprites.js';
+import { SPRITES, SPRITE_PROBLEMS, REQUIRED_KEYS, HEROES, HERO_W, HERO_H, heroOverlay, REALM_SPRITE_KEYS } from '../src/art/sprites.js';
 import { PALETTE, TEAM_COLORS, RARITY_COLORS, ELEMENT_COLORS, colorOf } from '../src/art/palette.js';
 import {
   CARD_ART_MAP, cardArtKey, defaultSkin, frameCount, spriteSize, getFrame, drawSprite, drawHero, cardArt, iconURL,
 } from '../src/art/sprite-cache.js';
 import { BIOMES, renderArenaBackground, drawRiver } from '../src/art/tiles.js';
+import {
+  REALM_TILES, renderRealmMap, renderRealmTile, drawRealmWater, drawTerritory, realmTileColor, REALM_BIOMES,
+} from '../src/art/realm-tiles.js';
 
 const VALID = new Set(['.', 'T', 't', 'L', ...Object.keys(PALETTE)]);
 
@@ -184,4 +187,76 @@ test('rendering APIs are safe to call in Node (no DOM)', () => {
   assert.doesNotThrow(() => renderArenaBackground('lava', 3));
   assert.doesNotThrow(() => drawRiver(null, 'lava', 1));
   assert.equal(frameCount('knight', 'missing_anim'), frameCount('knight', 'idle'));
+});
+
+// ---------------------------------------------------------------------------------------------
+// Tiny Gods realm: village sprites + terrain renderer
+// ---------------------------------------------------------------------------------------------
+
+test('realm sprites exist with contract sizes and animations', () => {
+  const sizes = {
+    keep: [40, 44], house: [20, 20], temple: [22, 26], barracks: [24, 22], banner: [10, 16], scaffold: [20, 20], nest: [24, 16],
+    villager: [10, 12], priest: [10, 12], wolf: [14, 10], bandit: [12, 14], faith_orb: [6, 6], brick_orb: [6, 6], heart_orb: [6, 6],
+    ui_faith: [10, 10], ui_pop: [10, 10], ui_hammer: [10, 10], ui_horn: [10, 10], ui_shield: [10, 10],
+  };
+  assert.deepEqual(Object.keys(sizes).sort(), REALM_SPRITE_KEYS.slice().sort());
+  for (const [k, [w, h]] of Object.entries(sizes)) {
+    assert.ok(SPRITES[k], `${k} exists`);
+    assert.deepEqual(spriteSize(k), { w, h }, k);
+  }
+  const anims = {
+    keep: ['idle', 'attack'], house: ['idle'], temple: ['idle'], barracks: ['idle', 'train'], banner: ['idle'], scaffold: ['idle'],
+    nest: ['idle'], villager: ['idle', 'walk', 'mine', 'carry'], priest: ['idle', 'pray'], wolf: ['idle', 'walk', 'attack'],
+    bandit: ['idle', 'walk', 'attack'], faith_orb: ['idle'],
+  };
+  for (const [k, list] of Object.entries(anims)) for (const a of list) assert.ok(SPRITES[k].anims[a], `${k}.${a}`);
+  assert.equal(frameCount('scaffold', 'idle'), 3, 'scaffold has 3 build-progress frames');
+  assert.equal(frameCount('faith_orb', 'idle'), 3, 'faith orb pulses in 3 frames');
+  for (const k of ['house', 'temple', 'banner', 'nest', 'brick_orb']) assert.ok(frameCount(k, 'idle') >= 2, `${k} idle is animated`);
+  for (const k of ['villager', 'wolf', 'bandit']) assert.ok(frameCount(k, 'walk') >= 2, `${k} walks`);
+  // neutral creatures never use team colours
+  for (const k of ['nest', 'wolf', 'bandit']) {
+    for (const frames of Object.values(SPRITES[k].anims)) {
+      for (const f of framesOf(frames)) for (const r of f) assert.ok(!/[TtL]/.test(r), `${k} must not use team chars`);
+    }
+  }
+  // village buildings and tribe units are team coloured
+  for (const k of ['keep', 'house', 'temple', 'barracks', 'banner', 'villager', 'priest']) {
+    assert.ok(framesOf(SPRITES[k].anims.idle).some((f) => f.some((r) => /[TtL]/.test(r))), `${k} uses team chars`);
+  }
+});
+
+test('realm terrain API: tile ids, colours, Node-safe rendering and view-clipped overlays', () => {
+  assert.deepEqual(REALM_TILES, {
+    DEEP: 0, WATER: 1, SAND: 2, GRASS: 3, FOREST: 4, HILL: 5, MOUNTAIN: 6, ASH: 7, SNOW: 8, LAVA: 9, MUD: 10, CRYSTAL: 11, PATH: 12,
+  });
+  assert.deepEqual(REALM_BIOMES.slice().sort(), ['candy', 'crystal', 'desert', 'frost', 'lava', 'meadow', 'swamp', 'void']);
+  for (const b of REALM_BIOMES) for (const t of Object.values(REALM_TILES)) assert.match(realmTileColor(t, b), /^#[0-9a-f]{6}$/i, `${b}/${t}`);
+  const w = 12;
+  const h = 10;
+  const tiles = new Uint8Array(w * h).fill(REALM_TILES.GRASS);
+  for (let i = 0; i < w; i++) tiles[i] = REALM_TILES.WATER;
+  tiles[5 * w + 5] = REALM_TILES.FOREST;
+  tiles[6 * w + 6] = REALM_TILES.LAVA;
+  const c = renderRealmMap(tiles, w, h, 'meadow', 3);
+  assert.equal(c.width, w * 16);
+  assert.equal(c.height, h * 16);
+  assert.doesNotThrow(() => renderRealmTile(null, tiles, w, h, 5, 5, 'meadow', 3));
+  assert.doesNotThrow(() => drawRealmWater(null, tiles, w, h, 'meadow', 1, { x0: 0, y0: 0, x1: w, y1: h }));
+  // mock context: overlays only touch tiles inside the view rect
+  const rects = [];
+  const ctx = {
+    globalAlpha: 1, fillStyle: '', save() {}, restore() {}, beginPath() {}, fill() {},
+    rect(x, y, rw, rh) { rects.push([x, y, rw, rh]); },
+  };
+  const view = { x0: 0, y0: 0, x1: 4, y1: 3 };
+  for (let k = 0; k < 10; k++) drawRealmWater(ctx, tiles, w, h, 'meadow', k * 0.37, view);
+  assert.ok(rects.length > 0, 'water glints drawn');
+  for (const [x, y] of rects) assert.ok(x >= 0 && x < 5 * 16 && y >= 0 && y < 4 * 16, `glint ${x},${y} inside view`);
+  rects.length = 0;
+  const owner = new Int8Array(w * h).fill(-1);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) owner[y * w + x] = x < 4 ? 0 : x > 7 ? 1 : -1;
+  drawTerritory(ctx, owner, w, h, { x0: 2, y0: 2, x1: 9, y1: 5 });
+  assert.ok(rects.length > 0, 'territory drawn');
+  for (const [x, y] of rects) assert.ok(x >= 2 * 16 && x < 10 * 16 && y >= 2 * 16 && y < 6 * 16, `territory ${x},${y} inside view`);
 });

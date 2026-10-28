@@ -1,9 +1,7 @@
 // Troop, building and tower behaviour: targeting, movement with bridge pathing, attacks and specials.
 
 import { dist, dist2, clamp, angleTo } from '../core/util.js';
-import {
-  ARENA_W, ARENA_H, RIVER_TOP, RIVER_BOTTOM, BRIDGES, inRiver, onBridge, sideOf,
-} from './constants.js';
+import { RIVER_TOP, RIVER_BOTTOM, BRIDGES, inRiver, onBridge, sideOf } from './constants.js';
 import {
   canTarget, statusMult, isDisabled, damage, heal, fireProjectile, railShot, coneHit, chainZap, isBuildingKind, kill,
 } from './combat.js';
@@ -36,22 +34,28 @@ export function findTarget(B, e, sight = SIGHT) {
   return best;
 }
 
-/** Default destination when nothing is in sight: the enemy tower on this lane. */
+/** Default destination when nothing is in sight (the map decides; lane arena: the enemy tower on this lane). */
 export function laneGoal(B, e) {
+  if (B.unitGoal) return B.unitGoal(e);
   const enemy = 1 - e.team;
   const towers = B.towers.filter((t) => t.team === enemy && t.alive);
   if (!towers.length) {
     // siege waves: defenders hold the river line, attackers go for the king
-    return { x: clamp(e.x, 2, ARENA_W - 2), y: e.team === 0 ? RIVER_BOTTOM + 1.6 : RIVER_TOP - 1 };
+    return { x: clamp(e.x, 2, B.W - 2), y: e.team === 0 ? RIVER_BOTTOM + 1.6 : RIVER_TOP - 1 };
   }
-  const leftLane = e.x < ARENA_W / 2;
+  const leftLane = e.x < B.W / 2;
   const princess = towers.find((t) => t.type === 'princess' && (t.side === 'left') === leftLane);
   const goal = princess || towers.find((t) => t.type === 'king') || towers[0];
   return goal;
 }
 
-/** Waypoint toward (tx, ty), routing ground units over a bridge when needed. */
-export function routeTo(e, tx, ty) {
+/** Waypoint toward (tx, ty): the map decides (lane arena: route ground units over a bridge when needed). */
+export function routeTo(B, e, tx, ty) {
+  if (B.routeTo) return B.routeTo(e, tx, ty);
+  return laneRoute(e, tx, ty);
+}
+
+function laneRoute(e, tx, ty) {
   if (e.flying || e.special?.jumpsRiver || e.jumping) return { x: tx, y: ty };
   const s0 = sideOf(e.y);
   const s1 = sideOf(ty);
@@ -88,7 +92,7 @@ function nearestBridge(x) {
 
 /** Move toward a point at the unit's speed; returns true if it moved. */
 export function moveToward(B, e, tx, ty, dt, stopDist = 0.05) {
-  const wp = routeTo(e, tx, ty);
+  const wp = routeTo(B, e, tx, ty);
   const routed = wp.x !== tx || wp.y !== ty;
   const d = dist(e.x, e.y, wp.x, wp.y);
   if (d <= (routed ? 0.05 : stopDist)) return false;
@@ -103,10 +107,14 @@ export function moveToward(B, e, tx, ty, dt, stopDist = 0.05) {
   return true;
 }
 
-/** Keep ground units out of the river (except bridges) and inside the arena. */
-export function constrain(e) {
-  e.x = clamp(e.x, e.r * 0.6, ARENA_W - e.r * 0.6);
-  e.y = clamp(e.y, e.r * 0.6, ARENA_H - e.r * 0.6);
+/** Keep units inside the map and ground units off impassable terrain (lane arena: the river except bridges). */
+export function constrain(B, e) {
+  e.x = clamp(e.x, e.r * 0.6, B.W - e.r * 0.6);
+  e.y = clamp(e.y, e.r * 0.6, B.H - e.r * 0.6);
+  if (B.constrain) {
+    B.constrain(e);
+    return;
+  }
   if (e.flying || e.special?.jumpsRiver || e.jumping || e.kind === 'tower' || e.kind === 'building') return;
   if (inRiver(e.y) && !onBridge(e.x)) {
     const b = nearestBridge(e.x);
@@ -119,13 +127,24 @@ export function constrain(e) {
 /** Soft separation between overlapping units, plus static push-out from buildings. */
 export function separate(B) {
   const list = B.entities;
-  const n = list.length;
+  // sort-and-sweep along x so big maps with many units stay cheap
+  const arr = sepBuf;
+  arr.length = 0;
+  let maxR = 0;
+  for (const e of list) {
+    if (!e.alive || e.noCollide) continue;
+    arr.push(e);
+    if (e.r > maxR) maxR = e.r;
+  }
+  arr.sort(byX);
+  const n = arr.length;
   for (let i = 0; i < n; i++) {
-    const a = list[i];
-    if (!a.alive) continue;
+    const a = arr[i];
+    const reach = a.r + maxR;
     for (let j = i + 1; j < n; j++) {
-      const b = list[j];
-      if (!b.alive || a.flying !== b.flying) continue;
+      const b = arr[j];
+      if (b.x - a.x > reach) break;
+      if (a.flying !== b.flying) continue;
       const aStatic = a.kind === 'tower' || a.kind === 'building';
       const bStatic = b.kind === 'tower' || b.kind === 'building';
       if (aStatic && bStatic) continue;
@@ -158,8 +177,11 @@ export function separate(B) {
       }
     }
   }
-  for (const e of list) if (e.alive && e.kind !== 'tower' && e.kind !== 'building') constrain(e);
+  for (const e of arr) if (e.alive && e.kind !== 'tower' && e.kind !== 'building') constrain(B, e);
+  arr.length = 0;
 }
+const sepBuf = [];
+const byX = (a, b) => a.x - b.x;
 
 // ───────────────────────── troops ─────────────────────────
 
@@ -534,7 +556,9 @@ export function updateTower(B, e, dt) {
 
 function towerLikeAttack(B, e, dt) {
   const t = e.target;
-  if (!t || !t.alive || !canTarget(e, t) || edgeDist(e, t) > e.range) {
+  e.scanT = (e.scanT || 0) - dt;
+  if ((!t || !t.alive || !canTarget(e, t) || edgeDist(e, t) > e.range) && (t || e.scanT <= 0)) {
+    e.scanT = 0.15;
     e.target = null;
     let best = null;
     let bd = Infinity;
