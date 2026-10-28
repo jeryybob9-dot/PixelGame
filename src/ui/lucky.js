@@ -47,7 +47,7 @@ export const luckyScreen = {
     const chestBtn = el('button.lucky-chest', { type: 'button', 'aria-label': 'Lucky Drop' }, chestCv);
     const loot = el('div.lucky-loot');
     const actions = el('div.lucky-actions');
-    root.append(el('div.lucky', null, title, sub, tapsEl, chestBtn, loot, actions));
+    root.append(el('div.lucky', null, el('div.plaque', null, title), sub, tapsEl, chestBtn, loot, actions));
 
     const drop = params.drop || null;
     let rolled = drop;

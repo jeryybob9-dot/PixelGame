@@ -161,6 +161,7 @@ export class Guide {
       if (skip) continue;
       this.step = s;
       this.stepT = 0;
+      this.scrolledAt = -1;
       this.shown = false;
       this.typed = 0;
       this.onStep?.(this.i, s);
@@ -324,12 +325,34 @@ export class Guide {
     } catch {
       raw = [];
     }
-    const items = (Array.isArray(raw) ? raw : [raw]).map((it) => this.resolve(it, rr)).filter(Boolean);
+    const list = Array.isArray(raw) ? raw : [raw];
+    this.scrollIntoView(list, rr);
+    const items = list.map((it) => this.resolve(it, rr)).filter(Boolean);
     this.drawDim(items, rr, s.dim !== false);
     this.drawBlockers(items, rr);
     this.drawRings(items);
     this.showBubble(s, items, dt);
     this.drawHand(s.hand, rr, dt);
+  }
+
+  /** Touch targets can sit below the fold, and the overlay blocks scrolling: bring them into view. */
+  scrollIntoView(list, rr) {
+    if (this.stepT < (this.scrolledAt ?? -1) + 0.8) return;
+    for (const item of list) {
+      if (!item || !item.pass) continue;
+      let el = item.at;
+      try {
+        el = typeof el === 'function' ? el() : el;
+      } catch {
+        el = null;
+      }
+      if (!(el instanceof Element) || !el.isConnected) continue;
+      const b = el.getBoundingClientRect();
+      if (b.top < rr.top || b.bottom > rr.bottom) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        this.scrolledAt = this.stepT;
+      }
+    }
   }
 
   drawDim(items, rr, dim) {

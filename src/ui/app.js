@@ -109,10 +109,10 @@ export class App {
       setTimeout(() => wrap.remove(), 160);
       opts.onClose?.();
     };
-    const head = opts.title
-      ? el('div.modal-head', null, el('h2.modal-title', { text: opts.title }), opts.dismissable === false ? null : el('button.icon-btn.modal-x', { 'aria-label': 'Close', onclick: () => { this.sfx('ui_back'); close(); } }, '✕'))
-      : null;
-    const sheet = el(`div.modal-sheet${opts.className ? '.' + opts.className.split(' ').join('.') : ''}`, { role: 'dialog', 'aria-modal': 'true' }, head, content);
+    // a framed board: title plaque on top, red close button on the corner, parchment page inside
+    const head = opts.title ? el('div.modal-head', null, el('h2.modal-title', { text: opts.title })) : null;
+    const x = opts.dismissable === false ? null : el('button.modal-x', { type: 'button', 'aria-label': 'Close', onclick: () => { this.sfx('ui_back'); close(); } }, '✕');
+    const sheet = el(`div.modal-sheet${opts.className ? '.' + opts.className.split(' ').join('.') : ''}`, { role: 'dialog', 'aria-modal': 'true', 'aria-label': opts.title || null }, head, x, el('div.modal-body', null, content));
     const wrap = el('div.modal-wrap', null, el('div.modal-backdrop', { onclick: () => opts.dismissable !== false && close() }), sheet);
     this.modals.appendChild(wrap);
     return close;

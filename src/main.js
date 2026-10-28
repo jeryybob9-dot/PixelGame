@@ -11,6 +11,7 @@ import { godboxScreen } from './ui/godbox-screen.js';
 import { getProfile, saveNow } from './core/profile.js';
 import { drawHero, drawSprite } from './art/sprite-cache.js';
 import { animatedCanvas } from './ui/components.js';
+import { installSkin } from './ui/skin.js';
 
 const titleScreen = {
   mount(root, app) {
@@ -35,9 +36,10 @@ const titleScreen = {
     };
     root.append(el('div.title', { onclick: go },
       el('div.title-bricks'),
-      el('h1.logo', null, el('span.logo-1', { text: 'BRICKBOX' }), el('span.logo-2', { text: 'TINY GODS' })),
-      el('div.title-scene', null, scene),
-      el('p.title-tag', { text: 'Fight. Build. Rule. Cast.' }),
+      el('div.title-sign', null,
+        el('h1.logo', null, el('span.logo-1', { text: 'BRICKBOX' }), el('span.logo-2', { text: 'TINY GODS' })),
+        el('div.title-scene', null, scene)),
+      el('p.title-tag', { text: 'Knock down the red castle!' }),
       el('button.btn.btn-gold.btn-big.pulse', { type: 'button', onclick: (e) => {
         e.stopPropagation();
         go();
@@ -51,6 +53,7 @@ async function boot() {
   const root = document.getElementById('app');
   if (!root) return;
   root.textContent = '';
+  installSkin();
   try {
     await Promise.race([
       Promise.all([document.fonts.load('16px "Press Start 2P"'), document.fonts.load('16px "Pixelify Sans"')]),

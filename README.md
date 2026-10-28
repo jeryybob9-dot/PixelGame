@@ -69,6 +69,10 @@ time, dims everything except the button to press, and shows the gesture with a p
 first reward with you and tours the menus: upgrade a card, the hero, the shop's free gift, quests, then your first
 real match.
 
+**A storybook UI.** Menus are carved wooden boards with gold trim and steel corner brackets, title plaques, parchment
+pages, ribbon banners and glossy candy buttons. The wood, parchment and brick textures are pixel art painted in code
+(`src/ui/skin.js`), so the interface matches the pixel-art world.
+
 **Built for iPhone.** Touch-first controls, pinch zoom, a minimap, safe-area awareness, haptics in the native app, an
 offline home-screen web app, and synthesized chiptune music and sound effects (no audio files).
 

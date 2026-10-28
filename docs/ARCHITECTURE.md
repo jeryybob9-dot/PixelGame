@@ -46,7 +46,8 @@ src/realm/                 Realm Clash: realm.js (Realm extends Battle), worldge
 src/realm3d/               render3d.js (the 3D brick-world view) + models.js (procedural LEGO-style models, 3D art agent)
 src/vendor/three.js        relative re-export of three.js
 src/ui/                    styles.css + screens (home, realm-screen, battle-screen, cards, hero, shop, lucky drop, skin editor),
-                           guide.js (tutorial overlay), training.js (scripted first match), tour.js (first drop + menu tour)
+                           guide.js (tutorial overlay), training.js (scripted first match), tour.js (first drop + menu tour),
+                           skin.js (pixel-art wood, parchment, brick and bracket textures as CSS variables)
 src/sandbox/               godbox.js (+ helpers) — the God Box sandbox mode (sandbox agent)
 assets/fonts/              Press Start 2P + Pixelify Sans (OFL) + licenses
 public/                    manifest.webmanifest, sw.js, icons/ (packaging agent)
@@ -58,11 +59,16 @@ ios/ + capacitor.config.json  native iOS wrapper (packaging agent)
 
 ## Theme (CSS custom properties, defined in src/ui/styles.css)
 
+The look is carved wood with gold trim, parchment pages, plaques, ribbons and glossy candy buttons over a night brick
+wall. `src/ui/skin.js` paints the pixel-art textures at boot and sets them as `--tex-wood`, `--tex-wood-dark`,
+`--tex-parch`, `--tex-wall`, `--corner-tl/tr/bl/br` (steel brackets) and `--stud`; every rule falls back to flat
+colours without them.
+
 ```
---bg #14121f   --panel #241f3a   --panel-2 #2f2950   --ink #f4efe6   --ink-dim #a79fc2
---gold #ffcf4a --gem #4ae3ff     --elixir #d64ae8   --brick #e8743b   --trophy #ffb52e
---blue #3b7dd8 --blue-dark #23468c --red #d8453b --red-dark #8c2a23 --good #5fd35f --bad #ff5a5a
---r-common #b9c3cf --r-rare #f2a33a --r-epic #b45be8 --r-legendary #3be8d0 --r-mythic #ff4ad2
+--outline #2b1409 (every border)   --wood #a85d2c  --wood-dk #5c2c12   --gold #ffcf3f  --gold-mid #f5a623  --gold-dark #b8650d
+--parch #f4ddae  --parch-ink #4b2a12   --ink #fff4dc (text on wood, with --stroke / --stroke-sm outlines)
+--wood-bg / --wood-dark-bg / --parch-bg (layered backgrounds)   --board-shadow (gold-rimmed board)  --brackets (corner art)
+.btn (gold) .btn-green .btn-red .btn-blue .btn-gem .btn-ghost (wood)   .plaque   .ribbon   .modal-sheet > .modal-body
 --font-display: "Press Start 2P", monospace   (headings, numbers; use sparingly, small sizes)
 --font-body: "Pixelify Sans", system-ui, sans-serif
 ```

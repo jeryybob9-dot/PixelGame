@@ -1031,7 +1031,7 @@ export const realmScreen = {
         actions.appendChild(el('button.btn.btn-gold.btn-big', { type: 'button', onclick: () => app.go('home') }, 'Continue'));
         if (mode !== 'training') actions.appendChild(el('button.btn.btn-ghost', { type: 'button', onclick: () => app.go('realm', { mode }) }, mode === 'horde' ? 'Try again' : 'Play again'));
       }
-      const panel = el(`div.results.${outcome}`, null, el('h1.res-title', { text: title }), el('p.res-why', { text: why }), crownRow, rows, actions);
+      const panel = el(`div.results.${outcome}`, null, el('div.ribbon', null, el('h1.res-title', { text: title })), crownRow, el('p.res-why', { text: why }), rows, actions);
       screen.appendChild(el('div.results-wrap', null, panel));
       countUp(goldVal, 0, res.gold, 900);
       if (outcome === 'win') app.sfx('coin', { volume: 0.6 });

@@ -73,7 +73,8 @@ export function statBar(label, frac, valueText, color = 'var(--gold)') {
 /** Currency chip like [coin 1,250]. */
 export function chip(kind, amount, onClick) {
   const keys = { gold: 'ui_gold', gems: 'ui_gem', trophies: 'ui_trophy', bricks: 'ui_brick', elixir: 'ui_faith', faith: 'ui_faith', crowns: 'ui_crown', xp: 'ui_xp' };
-  return el(`button.chip.chip-${kind}`, { type: 'button', onclick: onClick, 'aria-label': `${amount} ${kind}` }, icon(keys[kind] || 'ui_gold', '', 2), el('span.chip-val', { text: fmtNum(amount) }));
+  const plus = kind === 'gold' || kind === 'gems' ? el('span.chip-plus', { text: '+', 'aria-hidden': 'true' }) : null;
+  return el(`button.chip.chip-${kind}`, { type: 'button', onclick: onClick, 'aria-label': `${amount} ${kind}` }, icon(keys[kind] || 'ui_gold', '', 2), el('span.chip-val', { text: fmtNum(amount) }), plus);
 }
 
 /** Price label for gold/gem prices. */
