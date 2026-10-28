@@ -7,6 +7,8 @@ import {
 } from '../core/profile.js';
 import { ARENAS } from '../data/arenas.js';
 import { renderArenaBackground } from '../art/tiles.js';
+import { renderRealmMap } from '../art/realm-tiles.js';
+import { generateRealm } from '../realm/worldgen.js';
 import { drawHero, drawSprite } from '../art/sprite-cache.js';
 import { chip, icon, progressBar, animatedCanvas } from './components.js';
 import { cardsTab } from './cards-tab.js';
@@ -91,15 +93,20 @@ const battleTab = {
     const arena = ARENAS[ai];
     const next = ARENAS[ai + 1];
 
-    // arena preview
+    // realm preview: a slice of this Realm's island
     const preview = el('canvas.arena-thumb', { width: 288, height: 200 });
     try {
-      const bg = renderArenaBackground(arena.biome, 7);
+      const isle = realmPreview(arena.biome);
       const ctx = preview.getContext('2d');
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(bg, 0, 160, 288, 200, 0, 0, 288, 200);
+      ctx.drawImage(isle, (isle.width - 288) / 2, isle.height - 200 - 70, 288, 200, 0, 0, 288, 200);
     } catch {
-      /* art not ready */
+      try {
+        const bg = renderArenaBackground(arena.biome, 7);
+        preview.getContext('2d').drawImage(bg, 0, 160, 288, 200, 0, 0, 288, 200);
+      } catch {
+        /* art not ready */
+      }
     }
     const heroId = p.heroId;
     const heroCv = animatedCanvas(64, 40, 3, (ctx, t) => {
@@ -113,7 +120,7 @@ const battleTab = {
     const card = el('section.arena-card', null,
       el('div.arena-art', null, preview, el('div.arena-hero', null, heroCv)),
       el('div.arena-info', null,
-        el('div.arena-num', { text: `Arena ${ai + 1}` }),
+        el('div.arena-num', { text: `Realm ${ai + 1}` }),
         el('h2.arena-name', { text: arena.name }),
         el('p.arena-blurb', { text: arena.blurb }),
         trophyRow));
@@ -121,17 +128,18 @@ const battleTab = {
     const battleBtn = el('button.btn.btn-battle', { type: 'button', onclick: () => {
       app.sfx('ui_click');
       if (!getProfile().tutorialDone) {
-        app.confirm({ title: 'New here?', text: 'Play a short training battle first? It teaches cards, your hero, bricks and tower elements.', yes: 'Training', no: 'Skip' })
-          .then((y) => app.go('battle', { mode: y ? 'tutorial' : 'duel' }));
+        app.confirm({ title: 'New here?', text: 'Play a guided first match? It teaches your hero, building, Faith and cards.', yes: 'Training', no: 'Skip' })
+          .then((y) => app.go('realm', { mode: y ? 'training' : 'clash' }));
         return;
       }
-      app.go('battle', { mode: 'duel' });
-    } }, el('span.bb-label', { text: 'BATTLE' }), el('small', { text: `vs ${arena.ai.name}` }));
+      app.go('realm', { mode: 'clash' });
+    } }, el('span.bb-label', { text: 'REALM CLASH' }), el('small', { text: `vs ${arena.ai.name}, rival god` }));
 
-    const modes = el('div.mode-grid', null,
-      modeTile('Siege Waves', `Best: wave ${p.stats.bestWave || 0}`, 'emote_angry', () => app.go('battle', { mode: 'waves' })),
+    const modes = el('div.mode-grid.four', null,
+      modeTile('Horde Nights', `Best: ${p.stats.bestNights || 0} nights`, 'wolf', () => app.go('realm', { mode: 'horde' })),
+      modeTile('Arena Duel', 'Quick lane battle', 'princess_tower', () => app.go('battle', { mode: 'duel' })),
       modeTile('God Box', 'Sandbox world', 'spell_meteor', () => app.go('godbox')),
-      modeTile('Training', p.tutorialDone ? 'Replay tutorial' : 'Start here!', 'emote_thumbs', () => app.go('battle', { mode: 'tutorial' }), !p.tutorialDone));
+      modeTile('Training', p.tutorialDone ? 'Replay the guide' : 'Start here!', 'emote_thumbs', () => app.go('realm', { mode: 'training' }), !p.tutorialDone));
 
     // daily quest teaser
     ensureDailyQuests();
@@ -143,6 +151,32 @@ const battleTab = {
     return () => heroCv.stop?.();
   },
 };
+
+const previewCache = new Map();
+/** A rendered island for a biome (cached). */
+function realmPreview(biome) {
+  let c = previewCache.get(biome);
+  if (!c) {
+    const m = generateRealm({ seed: 11, biome });
+    c = renderRealmMap(m.tiles, m.w, m.h, biome, 11);
+    const ctx = c.getContext('2d');
+    // a few village props on top
+    try {
+      const k = m.keeps[0];
+      drawSprite(ctx, 'keep', k.x * 16, (k.y + 1.5) * 16, { team: 0 });
+      drawSprite(ctx, 'house', (k.x - 3.5) * 16, (k.y - 0.5) * 16, { team: 0, scale: 1.5 });
+      drawSprite(ctx, 'temple', (k.x + 3.8) * 16, (k.y - 0.3) * 16, { team: 0, scale: 1.35 });
+      drawSprite(ctx, 'princess_tower', k.x * 16, (k.y - 4.5) * 16, { team: 0 });
+      for (const d of m.deposits.slice(0, 4)) drawSprite(ctx, 'brickpile', d.x * 16, d.y * 16 + 6, {});
+      drawSprite(ctx, 'villager', (k.x - 1.6) * 16, (k.y - 2.4) * 16, { team: 0, anim: 'carry' });
+      drawSprite(ctx, 'villager', (k.x + 2.2) * 16, (k.y - 3) * 16, { team: 0, anim: 'walk', flip: true });
+    } catch {
+      /* art missing */
+    }
+    previewCache.set(biome, c);
+  }
+  return c;
+}
 
 function modeTile(title, sub, iconKey, onClick, highlight = false) {
   return el(`button.mode-tile${highlight ? '.hl' : ''}`, { type: 'button', onclick: onClick }, icon(iconKey, 'mode-icon', 2), el('b', { text: title }), el('small', { text: sub }));
@@ -238,7 +272,7 @@ export function openSettings(app) {
         app.toast('Progress reset');
       }
     } }, 'Reset progress'),
-    el('p.credits', { text: 'Brickbox Royale · original pixel game. Fonts: Press Start 2P & Pixelify Sans (SIL Open Font License).' }));
+    el('p.credits', { text: 'Brickbox: Tiny Gods · original pixel game. Fonts: Press Start 2P & Pixelify Sans (SIL Open Font License).' }));
   app.modal(body, { title: 'Settings' });
 }
 

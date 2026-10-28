@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Zero-dependency static dev server for Brickbox Royale.
+// Zero-dependency static dev server for Brickbox: Tiny Gods.
 //
 //   npm run dev                      -> serves the repo root on http://localhost:5173
 //   npm run dev -- --host            -> also listen on the LAN (open the printed URL on an iPhone on the same Wi-Fi)
@@ -155,7 +155,7 @@ server.on('error', (e) => {
 server.listen(opts.port, opts.host, () => {
   const port = server.address().port; // differs from opts.port when started with --port 0
   const rel = path.relative(REPO_ROOT, ROOT) || '.';
-  console.log(`\n  Brickbox Royale dev server  (serving ./${rel})\n`);
+  console.log(`\n  Brickbox: Tiny Gods dev server  (serving ./${rel})\n`);
   console.log(`  Local:   http://localhost:${port}/`);
   if (opts.host === '0.0.0.0' || opts.host === '::') {
     for (const list of Object.values(os.networkInterfaces())) {

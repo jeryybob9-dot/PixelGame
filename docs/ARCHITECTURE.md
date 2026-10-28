@@ -1,11 +1,16 @@
-# Brickbox Royale — Architecture & Module Contracts
+# Brickbox: Tiny Gods — Architecture & Module Contracts
 
-Brickbox Royale is an original 2D pixel-art game that mixes four genres:
+Brickbox: Tiny Gods is an original 2D pixel-art game. You are a tiny god with a champion on a living island, and each
+source genre supplies one equal pillar. The game design is in [`DESIGN.md`](DESIGN.md).
 
-- **Lane battles** (card deck, elixir, King + Princess towers, overtime, trophies, arenas, Lucky Drops)
-- **Pixel shooter hero** you steer yourself (armory of weapons with effects, gadgets, pets, skin editor)
-- **Brick RTS** (builders mine brick piles; bricks upgrade your hero through 3 elemental forms and give towers elements)
-- **God sandbox** (god-power spells, burning terrain, creatures; plus the full "God Box" sandbox mode)
+- **FIGHT** (pixel shooter): a joystick-steered hero with an armory of weapons and effects, gadgets, pets, 3 forms
+  and a skin editor.
+- **BUILD** (brick RTS): villagers mine brick deposits and construct the Houses, Barracks, Watchtowers, Temples,
+  Outposts and Walls you place.
+- **RULE** (god sandbox): an autonomous tribe, territory borders, wildlife and monster nests, fire that spreads and
+  regrows, day and night, four Ages ending in Chaos. The full "God Box" sandbox is a separate mode.
+- **CARDS** (card battler meta): Divine Cards cast with Faith, card levels, Lucky Drops, Realms unlocked by
+  trophies, the Trophy Road, quests and the shop. The original lane battle survives as the side mode "Arena Duel".
 
 No trademarked names, characters or art from other games are used. Everything is original.
 
@@ -29,9 +34,11 @@ index.html                 dev entry (loads src/ui/styles.css and src/main.js as
 src/main.js                boot: fonts, storage, audio unlock, screen router
 src/core/                  storage.js, rng.js, util.js, input.js, loop.js, audio.js (audio agent), events.js
 src/data/                  cards.js, heroes.js, weapons.js, gadgets.js, pets.js, arenas.js, progression.js, quests.js, emotes.js
-src/art/                   palette.js, sprites.js, sprite-cache.js, tiles.js, icons.js (art agent)
-src/battle/                battle engine: state, entities, targeting, combat, effects, ai, render, hud
-src/ui/                    styles.css + screens (home, deck, armory, hero, shop, lucky drop, skin editor, settings, results)
+src/art/                   palette.js, sprites.js, sprite-cache.js, tiles.js, realm-tiles.js, icons.js (art agent)
+src/battle/                shared combat engine (damage, effects, projectiles, spells, troops, hero) + the Arena Duel lane mode
+src/realm/                 Tiny Gods: realm.js (Realm extends Battle), worldgen, grid (A*, territory), village (villagers),
+                           realm-ai (rival god), horde (Horde Nights), realm-tutorial, realm-render (camera, night, minimap)
+src/ui/                    styles.css + screens (home, realm-screen, battle-screen, cards, hero, shop, lucky drop, skin editor)
 src/sandbox/               godbox.js (+ helpers) — the God Box sandbox mode (sandbox agent)
 assets/fonts/              Press Start 2P + Pixelify Sans (OFL) + licenses
 public/                    manifest.webmanifest, sw.js, icons/ (packaging agent)
@@ -139,6 +146,24 @@ king_activate, unit_die, hero_die, hero_respawn, form_upgrade, brick_collect, co
 rarity_up, victory, defeat, draw, countdown, fight, overtime, double_elixir, emote, level_up, build, earthquake,
 black_hole, zombie_infect, sheep, dragon_roar, ufo, splash, mine_pick, nuke.
 Music themes: menu, meadow, desert, frost, swamp, crystal, lava, candy, void, godbox, waves.
+
+## Realm contract (src/realm/*)
+
+- `Realm` extends `Battle`. It overrides `initWorld()` (island, grid, deposits) and `setupSides()` (keeps,
+  villagers, heroes, shrine, nests, critters), and supplies the map hooks the shared unit code calls:
+  `routeTo(e, x, y)` (cached A*), `constrain(e)`, `landSafely(e)`, `unitGoal(e)` (march goals), `speedAt(x, y)`,
+  `canBurn(tx, ty)` and `onKill(e, src)`. `B.W`/`B.H` give the map size: 18×32 for the lane arena, 40×64 for a realm.
+- Faith is stored in `player.elixir`, so the shared card code (hand, queue, costs, `playCard`) works unchanged.
+- Entity kinds: `tower` (Keep = type `king`, Watchtower = type `princess`), `building` (structures with `struct`,
+  card buildings, nests and the shrine), `troop` (summons, warriors with `role: 'warrior'`, monsters on team 2),
+  `hero`, `pet`, `villager`, `critter` (ambient, untargetable) and `pickup` (Red Bricks and orbs, picked up by heroes).
+- Structures carry `fp` (a footprint in tiles), `built` (0..1) and `claim`. `Grid.occ` marks footprints, so A*
+  routes around buildings. Enemy walls stay passable at a cost, and units then smash them.
+- Territory: `computeTerritory()` gives tile ownership from building claims. `R.owner` is an Int8Array (-1, 0, 1).
+- Events emitted for the HUD: `age`, `night`, `day`, `banner`, `built`, `order`, `structureLost`, `nestCleared`,
+  `relic`, `shrine`, `raid`, `disaster`, `stance`, `crown`, `heroDeath`, `villagerBorn`, `coach`, `end`.
+- `realm-tiles.js` renders the terrain (`renderRealmMap`, `renderRealmTile`, `drawRealmWater`, `drawTerritory`,
+  `realmTileColor`). Tile ids `REALM_TILES` must equal `T` in `src/realm/constants.js`.
 
 ## God Box contract (src/sandbox/godbox.js) — sandbox agent
 

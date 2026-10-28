@@ -1,7 +1,7 @@
 // Guided first battle. Emits 'coach' events the HUD shows as speech bubbles.
 
 const STEPS = [
-  { text: 'Welcome to Brickbox Royale! Drag a card from your hand onto YOUR side of the arena (the bottom half).', focus: 'cards', wait: 'play' },
+  { text: 'Welcome to the Arena Duel! Drag a card from your hand onto YOUR side of the arena (the bottom half).', focus: 'cards', wait: 'play' },
   { text: 'Cards cost elixir. The purple bar refills by itself, faster in the last minute of a battle.', focus: 'elixir', wait: 5 },
   { text: 'Tap the ground to walk your hero there. Your hero shoots nearby enemies automatically. Tap an enemy to focus it.', focus: 'arena', wait: 'heroMove' },
   { text: 'Bricks (orange) come from builders, defeated enemies and over time. Tap the FORM button to upgrade your hero for 60 bricks!', focus: 'form', wait: 'form', give: { bricks: 60 } },

@@ -1,61 +1,86 @@
-# Brickbox Royale
+# Brickbox: Tiny Gods
 
-An original 2D pixel-art battle game for phones. Pick a deck and push your lanes. You also steer a hero yourself, send builders
-to mine bricks that power up your hero and towers, and call down god powers on the battlefield. Everything (art, sound and
-code) is original. It runs as plain JavaScript and Canvas with no runtime dependencies, in the browser, as an iPhone
-home-screen app, or as a native iOS app.
+An original 2D pixel-art game for phones. You are a tiny god with a champion on a small living island:
+
+- **Fight** as your hero.
+- **Build** a village brick by brick.
+- **Rule** a tribe that runs itself.
+- **Cast** Divine Cards from your deck.
+
+A rival god lives on the other side of the island, and only one village can rule it. Everything (art, sound and
+code) is original. It runs as plain JavaScript and Canvas with no runtime dependencies. You can play it in the
+browser, as an iPhone home-screen app, or as a native iOS app.
+
+The full design is in [`docs/DESIGN.md`](docs/DESIGN.md).
 
 ## Features
 
-**Battles (3 minutes + overtime).** Portrait lane arena with two bridges, a King tower and two Princess towers per side.
-Drag cards from a 4-card hand (8-card deck, cycling) onto your half. Elixir refills over time, at double speed in the
-last minute and triple in overtime. Take Princess towers for crowns and a bigger deploy zone. Knock down the King for an
-instant win. Overtime is sudden death, and a tie goes to whoever's weakest tower has more HP.
+**Realm Clash (main mode, 8 minutes).** Every match takes place on a freshly generated island that is
+point-symmetric, so both sides get a fair start. It has forests, hills, rivers with fords, brick deposits, monster
+nests and a Shrine in the middle.
+- **Win** by toppling the rival Keep, or by having the higher **Dominion** (land + buildings + population + Shrine)
+  when the Age of Chaos ends.
+- **Four Ages** change the rules:
+  - Dawn: peaceful build-up.
+  - Bricks: richer deposits, and night raids begin.
+  - War: barracks train twice as fast.
+  - Chaos: Faith ×2, plus meteors, lightning storms and earthquakes.
 
-**Your hero.** A blocky hero fights alongside your cards. Tap the ground to move, tap an enemy to focus it. Heroes
-auto-fire their equipped weapon, have armour that regenerates, respawn when they fall, and deal bonus damage to towers.
+**Fight.**
+- Steer your hero with a floating joystick (or WASD). It auto-fires its weapon at enemies in range.
+- Use 2 elemental spells, a gadget and a pet.
+- Spend bricks to transform through 3 forms (Apprentice → Ninja → Elemental Master).
+- Fallen heroes respawn at the Keep.
 
-**Bricks.** Builders mine brick piles and haul bricks to your King. Defeated enemies and towers drop bricks too. Spend
-them to:
-- upgrade your hero through 3 forms (Apprentice → Ninja → Elemental Master), unlocking an elemental spell at each step;
-- give a Princess tower an element: fire burns, ice slows, lightning chains, earth adds HP and stuns.
+**Build.**
+- Place blueprints inside your borders: House (+population), Barracks (trains Warriors), Watchtower (can take a
+  fire, ice, lightning or earth element), Temple (+Faith), Outpost (claims land far out and stores bricks) and Walls.
+- Villagers build them, mine deposits, haul bricks home and repair damage.
+- Buildings stand on little team-coloured brick baseplates.
 
-**42 cards** across Common, Rare, Epic and Legendary. Troops include knights, archers, Boom Sheep that explode, a
-Necromancer, a UFO that beams up small units, a Zombie Horde that converts its victims, and a Phoenix that is reborn
-from an egg. Buildings include a Tesla Coil, a Bone Crypt and an Elixir Mine. God-power spells include Meteor
-(burning ground), Earthquake, Blessing, Lightning, Acid Rain, Blizzard, Plague that spreads, Black Hole, and a Tiny Nuke
-that leaves wasteland nobody can deploy on.
+**Rule.**
+- Your tribe grows on its own and takes jobs (miner, builder, priest). Villagers flee from danger.
+- Territory borders spread from your buildings.
+- Wolves and bandits guard nests, and the nests raid the closest village at night.
+- Forest fires spread, burnt land turns to ash, and ash regrows into grass and then forest.
+- Clear a nest to find a **Red Brick**, a random power for the match: Swift Hands, Holy Spark, Brick Rain, Hero's
+  Might, Thick Walls, Battle Hymn, Fertile Lands or Gold Rush.
+- Capture the Shrine for Faith and Dominion.
+- Blow the **war horn** to switch your Warriors between Guard and Charge.
 
-**5 heroes, 17 weapons, 6 gadgets, 6 pets.**
+**Cast.**
+- An 8-card deck and a 4-card hand of **42 Divine Cards**, cast with Faith from your worshippers.
+- Summons drop inside your borders or next to your hero, who acts as a walking beacon.
+- Spells strike anywhere: Meteor (burning ground), Earthquake, Blessing, Lightning, Acid Rain, Blizzard, a Plague
+  that spreads, Black Hole and a Tiny Nuke.
+- Builder cards bring new villagers.
+
+**The rival god** plans a real village, expands with outposts toward deposits and the Shrine, and casts cards. It
+defends its land, hunts nests and relics with its hero, upgrades forms and sounds the war horn in waves.
+
+**5 heroes, 17 weapons, 6 gadgets, 6 pets and a skin editor.**
 - **Heroes:** Ember (fire), Terra (earth), Volt (lightning), Frost (ice) and Grim (shadow).
-- **Weapons:** Primary, Backup, Melee, Special, Sniper and Heavy categories. Effects include burning, poison, bleeding,
-  slow, stun, knockback, lifesteal, piercing rail shots, chain lightning, ricochet, spin-up, area damage, black-hole
-  vortices and a Sheep Launcher.
-- **Gadgets:** Medkit, Jetpack, Frost Grenade, Auto Turret, Energy Shield and Void Grenade.
-- **Pets:** they follow your hero into battle. The Lucky Sheep finds extra bricks and gold.
-
-**Skin editor.** Paint your hero on a 12×16 pixel grid. Forms 2 and 3 layer their outfit on top of your design.
+- **Weapon effects:** burning, poison, bleeding, slow, stun, knockback, lifesteal, piercing rail shots, chain
+  lightning, ricochet, spin-up, area damage, black-hole vortices and a Sheep Launcher.
+- **Skin editor:** paint your hero on a 12×16 pixel grid.
 
 **Progression.**
-- 8 arenas, each with its own biome, music, AI opponent and new cards.
-- Trophies, a Trophy Road with rewards and King levels.
-- Card and weapon upgrades.
-- Daily quests and achievements.
-- A shop with a free gift every 4 hours and daily deals. Everything costs in-game currency; there are no real-money
-  purchases.
+- 8 Realms (arenas), each with its own biome, music, rival god and new cards.
+- Trophies, a Trophy Road and King levels.
+- Card and weapon upgrades, daily quests and achievements.
+- **Lucky Drops** after every win: tap up to three times to upgrade the drop before opening it.
+- A shop with a free gift every 4 hours. There are no real-money purchases.
 
-**Lucky Drops.** Every win gives a drop. Tap it up to three times to try to upgrade it from Wooden to Rainbow before
-opening.
+**Other modes.**
+- **Horde Nights:** your village alone on the island. Every night a bigger horde lands on the beaches, with a
+  giant every 5th night.
+- **Arena Duel:** the classic lane battle with towers, bridges and elixir.
+- **God Box:** a full sandbox world. Paint terrain, spawn four tribes, watch villages grow into warring kingdoms,
+  and unleash meteors, plagues, black holes and atomic bombs.
+- **Training:** a coached first match.
 
-**Modes.**
-- **Battle** vs the AI. It defends with counters, spends spells for value, builds pushes, raids with its hero and emotes.
-- **Siege Waves:** endless monster waves with a boss every 5th wave.
-- **Training:** a guided tutorial.
-- **God Box:** a full sandbox world. Paint terrain, spawn four tribes, watch villages grow into warring kingdoms, and
-  unleash meteors, plagues, black holes and atomic bombs.
-
-**Built for iPhone.** Touch-first controls, safe-area aware, haptics in the native app, offline home-screen web app, and
-synthesized chiptune music and sound effects (no audio files).
+**Built for iPhone.** Touch-first controls, pinch zoom, a minimap, safe-area awareness, haptics in the native app, an
+offline home-screen web app, and synthesized chiptune music and sound effects (no audio files).
 
 ## Run it locally
 

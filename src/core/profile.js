@@ -50,6 +50,7 @@ function defaultProfile() {
     stats: {
       battles: 0, wins: 0, losses: 0, draws: 0, threeCrowns: 0, towers: 0, kills: 0, heroKills: 0, cardsPlayed: 0,
       spellsCast: 0, bricks: 0, forms: 0, elements: 0, crowns: 0, bestWave: 0, wavesCleared: 0, godboxVisits: 0,
+      built: 0, relics: 0, nests: 0, realmBattles: 0, realmWins: 0, keepKills: 0, bestNights: 0, nights: 0,
     },
     quests: { day: '', list: [] },
     achievements: {},
@@ -355,13 +356,15 @@ export function applyBattleResult(r) {
   let trophyDelta = 0;
   let gold = 0;
   let xp = 0;
-  if (r.mode === 'duel') {
+  if (r.mode === 'duel' || r.mode === 'realm') {
     profile.stats.battles++;
     const arena = arenaIndex();
     if (r.outcome === 'win') {
       trophyDelta = TROPHY_WIN + Math.max(0, r.crowns - 1) * 2;
       bumpStat('wins', 1);
+      if (r.mode === 'realm') bumpStat('realmWins', 1);
       if (r.crowns >= 3) bumpStat('threeCrowns', 1);
+      if (r.mode === 'realm' && r.crowns >= 3) bumpStat('keepKills', 1);
     } else if (r.outcome === 'loss') {
       const floor = ARENAS[arena].trophies;
       trophyDelta = -Math.min(TROPHY_LOSS, Math.max(0, profile.trophies - floor));
@@ -378,6 +381,12 @@ export function applyBattleResult(r) {
     xp = 3 + w;
     bumpStat('wavesCleared', Math.max(0, w - 1));
     if (w > profile.stats.bestWave) profile.stats.bestWave = w;
+  } else if (r.mode === 'horde') {
+    const n = r.wave || 0;
+    gold = 25 * n + Math.floor(n / 5) * 60;
+    xp = 4 + n * 2;
+    bumpStat('nights', n);
+    if (n > (profile.stats.bestNights || 0)) profile.stats.bestNights = n;
   } else if (r.mode === 'tutorial') {
     gold = 150;
     xp = 10;

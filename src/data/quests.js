@@ -12,6 +12,11 @@ export const QUEST_POOL = [
   { id: 'waves8', text: 'Survive 8 waves in Siege Waves', stat: 'wavesCleared', goal: 8, reward: { gold: 200 } },
   { id: 'elements2', text: 'Give 2 towers an element', stat: 'elements', goal: 2, reward: { gold: 120 } },
   { id: 'crowns6', text: 'Earn 6 crowns', stat: 'crowns', goal: 6, reward: { gems: 6 } },
+  { id: 'build10', text: 'Finish 10 buildings in Realm Clash', stat: 'built', goal: 10, reward: { gold: 180 } },
+  { id: 'nests2', text: 'Clear 2 monster nests', stat: 'nests', goal: 2, reward: { gold: 160 } },
+  { id: 'relics2', text: 'Find 2 Red Bricks', stat: 'relics', goal: 2, reward: { gems: 8 } },
+  { id: 'realm2', text: 'Win 2 Realm Clashes', stat: 'realmWins', goal: 2, reward: { gold: 220 } },
+  { id: 'nights5', text: 'Survive 5 nights in Horde Nights', stat: 'nights', goal: 5, reward: { gold: 200 } },
 ];
 
 export const ACHIEVEMENTS = [
@@ -31,4 +36,9 @@ export const ACHIEVEMENTS = [
   { id: 'king_10', text: 'Reach King level 10', stat: 'kingLevel', goal: 10, reward: { gems: 150 } },
   { id: 'cards_30', text: 'Collect 30 different cards', stat: 'cardsOwned', goal: 30, reward: { gems: 100 } },
   { id: 'godbox', text: 'Visit the God Box', stat: 'godboxVisits', goal: 1, reward: { gems: 15 } },
+  { id: 'keep_1', text: 'Topple a rival Keep', stat: 'keepKills', goal: 1, reward: { gems: 30 } },
+  { id: 'keep_10', text: 'Topple 10 rival Keeps', stat: 'keepKills', goal: 10, reward: { gems: 120 } },
+  { id: 'build_100', text: 'Finish 100 buildings', stat: 'built', goal: 100, reward: { gems: 60 } },
+  { id: 'relics_20', text: 'Find 20 Red Bricks', stat: 'relics', goal: 20, reward: { gems: 80 } },
+  { id: 'nights_10', text: 'Survive 10 nights in one Horde', stat: 'bestNights', goal: 10, reward: { gems: 100 } },
 ];

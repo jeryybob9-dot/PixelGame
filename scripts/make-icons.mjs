@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Brickbox Royale icon generator — zero dependencies (node:zlib + a hand-rolled CRC32 PNG encoder).
+// Brickbox: Tiny Gods icon generator — zero dependencies (node:zlib + a hand-rolled CRC32 PNG encoder).
 //
 // Renders an original 32x32 pixel-art icon (a chunky orange toy brick with studs, wearing a golden crown,
 // on a deep-purple background split blue/red for the two teams) and scales it up with integer

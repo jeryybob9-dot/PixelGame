@@ -70,7 +70,7 @@ test('dist/index.html registers the service worker only behind guards', () => {
 test('dist/artifact.html is an HTML fragment fit for a Claude Artifact', () => {
   const html = read('artifact.html');
   const markup = markupOnly(html);
-  assert.ok(html.startsWith('<title>Brickbox Royale</title>'), 'fragment must start with <title>');
+  assert.ok(html.startsWith('<title>Brickbox: Tiny Gods</title>'), 'fragment must start with <title>');
   assert.match(markup, /<meta name="claude:viewport-fit-sides" content="cover">/);
   assert.doesNotMatch(markup, /<!doctype/i);
   assert.doesNotMatch(markup, /<\/?html[\s>]/i);
@@ -89,7 +89,7 @@ test('dist/artifact.html is an HTML fragment fit for a Claude Artifact', () => {
 test('manifest is valid and its icons exist', () => {
   for (const dir of [path.join(ROOT, 'public'), DIST]) {
     const m = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.webmanifest'), 'utf8'));
-    assert.equal(m.name, 'Brickbox Royale');
+    assert.equal(m.name, 'Brickbox: Tiny Gods');
     assert.equal(m.short_name, 'Brickbox');
     assert.equal(m.display, 'fullscreen');
     assert.ok(Array.isArray(m.display_override) && m.display_override.includes('standalone'));

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Brickbox Royale production build (esbuild JS API).
+// Brickbox: Tiny Gods production build (esbuild JS API).
 //
 // Inputs:  index.html (meta tags, <title>, body markup), src/main.js, src/ui/styles.css, public/*, assets/fonts/*
 // Outputs: dist/index.html            single self-contained page (inline CSS + JS + base64 fonts) + PWA bits
@@ -99,7 +99,7 @@ function readDevShell() {
   // charset must come first
   metas.sort((a, b) => (metaKey(b) === 'charset') - (metaKey(a) === 'charset'));
 
-  const title = (html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? 'Brickbox Royale').trim();
+  const title = (html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? 'Brickbox: Tiny Gods').trim();
   const lang = html.match(/<html\b[^>]*\blang\s*=\s*["']([^"']+)["']/i)?.[1] ?? 'en';
   let body = html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)?.[1] ?? '';
   body = body
@@ -280,7 +280,7 @@ async function main() {
   }
 
   // Report.
-  console.log(`\n  Brickbox Royale build  (${bundled.inputs} modules, ${Math.round(performance.now() - t0)} ms)\n`);
+  console.log(`\n  Brickbox: Tiny Gods build  (${bundled.inputs} modules, ${Math.round(performance.now() - t0)} ms)\n`);
   console.log(`  ${'js bundle'.padEnd(34)} ${kb(Buffer.byteLength(js)).padStart(10)}`);
   console.log(`  ${'css bundle (incl. fonts)'.padEnd(34)} ${kb(Buffer.byteLength(css)).padStart(10)}`);
   for (const p of written) {

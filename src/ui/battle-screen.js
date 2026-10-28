@@ -22,7 +22,7 @@ import {
 import { cardArtURL, icon, countUp } from './components.js';
 import { drawHero } from '../art/sprite-cache.js';
 
-const SPELL_ICON = {
+export const SPELL_ICON = {
   firespin: 'spell_meteor', dragonbreath: 'dragon', stoneskin: 'elem_earth', earthsplitter: 'spell_quake',
   chainspark: 'spell_spark', thunderstorm: 'spell_lightning', frostnova: 'spell_blizzard', iceage: 'elem_ice',
   bonearmy: 'skeleton', soulharvest: 'spell_plague',
@@ -47,7 +47,7 @@ export function playerSetup() {
   };
 }
 
-function enemySetup(arenaIdx, rng) {
+export function enemySetup(arenaIdx, rng) {
   const p = getProfile();
   const a = ARENAS[arenaIdx];
   const deck = rng.pick(a.ai.decks);

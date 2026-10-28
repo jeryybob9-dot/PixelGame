@@ -1,6 +1,6 @@
 {
   "appId": "com.brickbox.royale",
-  "appName": "Brickbox Royale",
+  "appName": "Brickbox",
   "webDir": "dist",
   "backgroundColor": "#14121f",
   "server": {

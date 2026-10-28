@@ -351,8 +351,8 @@ export class Realm extends Battle {
 
   spawnMonster(kind, x, y, extra = {}) {
     const id = kind === 'skeleton' ? 'wild_skeleton' : kind;
-    const age = this.ageIdx;
-    const u = this.spawnUnit(WILD, id, x, y, 1 + age, { deployT: 0.4, ...extra });
+    const lvl = this.horde ? this.horde.level : 1 + this.ageIdx;
+    const u = this.spawnUnit(WILD, id, x, y, lvl, { deployT: 0.4, ...extra });
     if (u) {
       u.role = 'monster';
       u.facing = 1;
@@ -1046,7 +1046,7 @@ export class Realm extends Battle {
 
   /** Each nest sends a raid at the closest village when night falls. */
   launchRaids() {
-    const size = [0, 2, 3, 4][this.ageIdx] || 4;
+    const size = this.horde ? Math.min(4, 1 + Math.floor(this.horde.night / 3)) : [0, 2, 3, 4][this.ageIdx] || 4;
     for (const n of this.nests) {
       if (!n.alive) continue;
       let team = -1;
@@ -1367,22 +1367,24 @@ export class Realm extends Battle {
       if (idx === 3) this.audio?.setIntensity?.(1);
       else if (idx === 2) this.audio?.setIntensity?.(0.5);
     }
-    // day / night from the Age of Bricks on
+    // day / night from the Age of Bricks on (Horde Nights runs its own schedule)
     let night = false;
-    if (el >= AGES[1].at) {
+    if (this.horde) night = this.horde.isNight(el);
+    else if (el >= AGES[1].at) {
       const c = (el - AGES[1].at) % DAY_LENGTH;
       night = c >= DAY_LENGTH - NIGHT_LENGTH;
     }
     if (night !== this.night) {
       this.night = night;
-      this.emit(night ? 'night' : 'day', {});
       if (night) {
         this.sfx('ufo', { volume: 0.3, pitch: 0.5 });
+        this.horde?.onNight();
         this.launchRaids();
-      }
+      } else this.horde?.onDay();
+      this.emit(night ? 'night' : 'day', {});
     }
     this.nightK += ((night ? 1 : 0) - this.nightK) * Math.min(1, dt * 0.8);
-    if (this.clock <= 0) this.finishByDominion();
+    if (this.clock <= 0 && !this.horde) this.finishByDominion();
   }
 
   finishByDominion() {

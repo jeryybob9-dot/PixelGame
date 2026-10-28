@@ -418,6 +418,9 @@ export class RealmAI {
   stance() {
     const R = this.R;
     const p = this.me;
+    if (this.diffId === 'tutorial') return;
+    // gentle rivals keep their warriors home until the Age of War
+    if (this.diffId === 'easy' && R.ageIdx < 2) return R.setStance(this.team, 'guard');
     if (R.ageIdx < 1 && R.time < 120) return R.setStance(this.team, 'guard');
     const enough = p.warriors >= (R.ageIdx >= 3 ? 3 : R.ageIdx >= 2 ? 4 : 6);
     if (p.stance === 'guard' && enough && !this.threats()) {

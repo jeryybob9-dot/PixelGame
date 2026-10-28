@@ -4,6 +4,7 @@ import { el } from './core/util.js';
 import { App } from './ui/app.js';
 import { homeScreen } from './ui/home.js';
 import { battleScreen } from './ui/battle-screen.js';
+import { realmScreen } from './ui/realm-screen.js';
 import { luckyScreen } from './ui/lucky.js';
 import { skinScreen } from './ui/skin-editor.js';
 import { godboxScreen } from './ui/godbox-screen.js';
@@ -14,12 +15,17 @@ import { animatedCanvas } from './ui/components.js';
 const titleScreen = {
   mount(root, app) {
     const p = getProfile();
-    const scene = animatedCanvas(120, 44, 3, (ctx, t) => {
-      // a little showdown: hero vs a giant, sheep bouncing between them
-      drawHero(ctx, { heroId: p.heroId, form: 1 + (Math.floor(t / 2.5) % 3), skin: p.heroes[p.heroId]?.skin, x: 26, y: 40, anim: 'shoot', t, team: 0, weaponId: p.weaponId, aim: -0.1 });
-      drawSprite(ctx, 'giant', 96, 40, { anim: 'walk', t, team: 1, flip: true });
-      drawSprite(ctx, 'sheep', 60 + Math.sin(t * 2) * 14, 40 - Math.abs(Math.sin(t * 5)) * 8, { anim: 'walk', t, team: null, flip: Math.cos(t * 2) < 0 });
-      drawSprite(ctx, 'dragon', 70 + Math.sin(t) * 30, 14 + Math.sin(t * 2) * 3, { anim: 'walk', t, team: 1, flip: Math.cos(t) < 0 });
+    const scene = animatedCanvas(120, 50, 3, (ctx, t) => {
+      // a tiny village: keep, a villager hauling bricks, the hero facing a wolf, and a god-power meteor
+      drawSprite(ctx, 'keep', 20, 46, { team: 0, t });
+      drawSprite(ctx, 'house', 48, 46, { team: 0, t });
+      const vx = 40 + ((t * 8) % 30);
+      drawSprite(ctx, 'villager', vx, 47, { anim: 'carry', t, team: 0 });
+      drawHero(ctx, { heroId: p.heroId, form: 1 + (Math.floor(t / 2.5) % 3), skin: p.heroes[p.heroId]?.skin, x: 78, y: 47, anim: 'shoot', t, team: 0, weaponId: p.weaponId, aim: 0 });
+      drawSprite(ctx, 'wolf', 104 + Math.sin(t * 3) * 3, 47, { anim: 'walk', t, team: null, flip: true });
+      const m = (t * 0.7) % 1;
+      drawSprite(ctx, 'fireball', 70 + m * 40, -6 + m * 48, { t, scale: 1 });
+      drawSprite(ctx, 'temple', 104, 22, { team: null, t, scale: 0.8 });
     });
     const go = () => {
       app.sfx('fight');
@@ -27,14 +33,14 @@ const titleScreen = {
     };
     root.append(el('div.title', { onclick: go },
       el('div.title-bricks'),
-      el('h1.logo', null, el('span.logo-1', { text: 'BRICKBOX' }), el('span.logo-2', { text: 'ROYALE' })),
+      el('h1.logo', null, el('span.logo-1', { text: 'BRICKBOX' }), el('span.logo-2', { text: 'TINY GODS' })),
       el('div.title-scene', null, scene),
-      el('p.title-tag', { text: 'Cards. Heroes. Bricks. God powers.' }),
+      el('p.title-tag', { text: 'Fight. Build. Rule. Cast.' }),
       el('button.btn.btn-gold.btn-big.pulse', { type: 'button', onclick: (e) => {
         e.stopPropagation();
         go();
       } }, 'Tap to Play'),
-      el('small.title-ver', { text: 'v1.0' })));
+      el('small.title-ver', { text: 'v2.0' })));
     return () => scene.stop?.();
   },
 };
@@ -55,6 +61,7 @@ async function boot() {
   app.register('title', titleScreen);
   app.register('home', homeScreen);
   app.register('battle', battleScreen);
+  app.register('realm', realmScreen);
   app.register('lucky', luckyScreen);
   app.register('skin', skinScreen);
   app.register('godbox', godboxScreen);
