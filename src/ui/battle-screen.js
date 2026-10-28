@@ -436,6 +436,7 @@ export const battleScreen = {
     };
 
     // ───────────── battle events → HUD ─────────────
+    let coachTimer = 0;
     const showBanner = (text, kind = '') => {
       banner.className = `b-banner show ${kind}`;
       banner.textContent = text;
@@ -455,7 +456,10 @@ export const battleScreen = {
         document.querySelectorAll('.coach-focus').forEach((n) => n.classList.remove('coach-focus'));
         if (!c) return;
         clear(coach);
+        coach.classList.remove('fade');
         coach.append(el('div.coach-step', { text: `Tip ${c.step + 1}/${c.total}` }), el('p', { text: c.text }));
+        clearTimeout(coachTimer);
+        coachTimer = setTimeout(() => coach.classList.add('fade'), 8000);
         const focusMap = { cards: hand, elixir: elixirBar, form: formBtn, spell: spellBtns[0], arena: arenaWrap, tower: arenaWrap };
         focusMap[c.focus]?.classList.add('coach-focus');
       }),
@@ -650,6 +654,7 @@ export const battleScreen = {
       ro.disconnect();
       window.removeEventListener('keydown', onKey);
       offs.forEach((f) => f());
+      clearTimeout(coachTimer);
       app.onHidden = null;
       B.silent = true;
       try {
