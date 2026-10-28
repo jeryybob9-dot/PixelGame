@@ -189,7 +189,6 @@ export class TrainingCoach {
     let dropArchers = null;
     let houseSpot = null;
     let base = 0;
-    let knightSlot = 0;
     const played = () => me.stats.cardsPlayed > base;
     const moved = () => {
       const h = hero();
@@ -207,27 +206,21 @@ export class TrainingCoach {
     };
 
     return [
-      // ── the goal ──
-      { text: 'Hi, I\'m Foreman Bo! Welcome to Brickbox. I\'ll show you how to win. It only takes a minute!', next: 'tap', bubble: 'mid', enter: freeze(true) },
+      // the goal
       {
-        text: 'See that RED castle across the river? That\'s your enemy. Knock it down to WIN!',
-        enter: () => api.look(k1.x, k1.y + 2.5),
+        text: 'Knock down the RED castle across the river to win. Keep your blue castle standing!',
+        enter: () => {
+          this.frozen = true;
+          api.look(k1.x, k1.y + 2.5);
+        },
         target: () => this.castleBox(k1),
         delay: 0.9,
         next: 'tap',
       },
-      {
-        text: 'And this BLUE castle is yours. If it falls, you lose. Protect it!',
-        enter: () => api.look(k0.x, k0.y - 1),
-        target: () => this.castleBox(k0),
-        delay: 0.9,
-        next: 'tap',
-      },
-      { text: 'These bars show both castles\' health. Destroy theirs before they destroy yours!', target: () => els.castles, next: 'tap' },
 
-      // ── the hero ──
+      // the hero
       {
-        text: 'This is your HERO. Drag on the LEFT side of the screen to walk around.',
+        text: 'Drag on the LEFT side of the screen to move your hero. It attacks enemies on its own.',
         enter: () => {
           api.follow();
           this.frozen = false;
@@ -242,21 +235,7 @@ export class TrainingCoach {
         next: () => moved() > 3,
       },
       {
-        text: 'Monsters! Your hero attacks by itself when enemies are close. Walk over and beat them!',
-        enter: () => {
-          const h = hero();
-          const ty = Math.max(riverY + 4, h.y - 5);
-          foes = this.monsters(2, h.x, ty, 0.8, 200);
-        },
-        target: () => [{ at: leftMap(), pass: true, ring: false, pad: 0 }, { at: () => this.groupBox(foes) }],
-        dim: false,
-        minTime: 3,
-        next: () => foes.every((f) => !f.alive),
-        timeout: 30,
-        onTimeout: () => foes.forEach((f) => f.alive && (f.hp = 0)),
-      },
-      {
-        text: 'A whole gang! Tap POWER to use your hero\'s special attack.',
+        text: 'Tap POWER for your hero\'s special attack.',
         enter: () => {
           this.frozen = true;
           const h = hero();
@@ -272,32 +251,13 @@ export class TrainingCoach {
         next: () => this.usedPower,
       },
       { overlay: false, enter: freeze(false), next: () => foes.every((f) => !f.alive), timeout: 5, onTimeout: () => foes.forEach((f) => f.alive && (f.hp = 0)) },
-      {
-        text: 'Boom! POWER takes a few seconds to recharge. Your hero levels up as it fights. Watch the LV badge.',
-        target: () => [els.heroBox, els.powerBtn],
-        next: 'tap',
-        enter: freeze(true),
-      },
 
-      // ── bricks and villagers ──
-      { text: 'These are your BRICKS. Bricks pay for everything: troops, spells and buildings.', target: () => els.brickBar, next: 'tap' },
+      // troops
       {
-        text: 'Your villagers mine brick piles and carry the bricks home. More villagers means more bricks!',
-        enter: () => api.look(k0.x, k0.y - 1),
-        target: () => {
-          const v = R.entities.find((e) => e.alive && e.kind === 'villager' && e.team === 0);
-          return [els.villagerChip, v ? api.worldBox(v.x - 0.7, v.y - 1.6, v.x + 0.7, v.y + 0.4) : null];
-        },
-        delay: 0.6,
-        next: 'tap',
-      },
-
-      // ── cards ──
-      { text: 'These are your CARDS. The number on each card is its price in bricks.', target: () => els.hand, next: 'tap', enter: () => api.follow() },
-      {
-        text: 'Drag the KNIGHT onto your side of the river. It\'s on the house!',
+        text: 'Drag the KNIGHT onto your side of the river. Troops march to the red castle on their own.',
         enter: () => {
-          knightSlot = this.ready('knight');
+          this.frozen = true;
+          this.ready('knight');
           base = me.stats.cardsPlayed;
           dropKnight = this.free(k0.x, k0.y - 6);
           api.look(k0.x, k0.y - 4);
@@ -307,38 +267,30 @@ export class TrainingCoach {
         next: played,
       },
       {
-        text: 'Nice! After you play a card, the NEXT card slides into your hand.',
-        target: () => [els.nextBox, els.cards[knightSlot]],
-        next: 'tap',
-      },
-      {
-        text: 'Troops march to the red castle all by themselves. Let\'s follow your Knight!',
+        // follow the Knight over the river
+        overlay: false,
         enter: () => {
           this.frozen = false;
           knight = R.entities.find((e) => e.alive && e.team === 0 && e.kind === 'troop' && e.cardId === 'knight') || this.troops(0)[0];
           if (knight) api.track(knight);
         },
-        overlay: false,
-        bubble: 'top',
         next: () => !knight || !knight.alive || knight.y < riverY - 2,
         timeout: 18,
       },
       {
-        text: 'Uh-oh, the enemy defends! Troops fight whatever they meet on the way.',
+        // the rival defends, then counter-attacks
+        overlay: false,
         enter: () => {
           const b = this.bridge;
           const x = knight?.alive ? knight.x : b.x;
           const y = Math.max(4, (knight?.alive ? knight.y : riverY) - 5);
           attackers = [...this.enemyCard('knight', x, y), ...this.enemyCard('archers', x + 0.8, y - 1.2)];
         },
-        overlay: false,
-        bubble: 'top',
         next: () => !knight || !knight.alive,
         timeout: 25,
         onTimeout: () => knight?.alive && (knight.hp = 0),
       },
       {
-        // wait for the counter-attack to cross the river (send one if the defenders all fell)
         overlay: false,
         enter: () => {
           attackers = this.troops(1);
@@ -353,7 +305,7 @@ export class TrainingCoach {
         timeout: 25,
       },
       {
-        text: 'They\'re coming for your castle! Drag the ARCHERS in front of it to defend.',
+        text: 'They\'re attacking! Drop the ARCHERS in front of your castle.',
         skipIf: () => attackers.every((a) => !a.alive),
         enter: () => {
           this.frozen = true;
@@ -376,12 +328,12 @@ export class TrainingCoach {
         timeout: 30,
         onTimeout: () => attackers.forEach((a) => a.alive && (a.hp = 0)),
       },
-      { text: 'Great defending! Your castle shoots at enemies too.', target: () => this.castleBox(k0), next: 'tap', enter: freeze(true) },
 
-      // ── spells ──
+      // spells
       {
-        text: 'A big group of skeletons! Drag the VOLLEY spell onto them. Spells hit everything in an area.',
+        text: 'Spells hit everything in an area. Drag the VOLLEY onto the skeletons.',
         enter: () => {
+          this.frozen = true;
           this.ready('volley');
           base = me.stats.cardsPlayed;
           pack = this.monsters(4, k0.x + 3, k0.y - 8, 0.9, 70);
@@ -399,12 +351,12 @@ export class TrainingCoach {
         timeout: 4,
         onTimeout: () => pack.forEach((m) => m.alive && (m.hp = 0)),
       },
-      { text: 'Spells are perfect for groups. Big troops like a Knight can take a hit, though!', next: 'tap', bubble: 'mid', enter: freeze(true) },
 
-      // ── building ──
+      // building: one line of text, then the hand shows the taps
       {
-        text: 'Time to build! Tap BUILD.',
+        text: 'Buildings make you much stronger. Build a HOUSE: 2 more villagers and extra bricks every second.',
         enter: () => {
+          this.frozen = true;
           me.bricks = Math.max(me.bricks, 60);
           api.look(k0.x, k0.y - 1);
         },
@@ -413,61 +365,44 @@ export class TrainingCoach {
         next: () => api.buildMode(),
       },
       {
-        text: 'A HOUSE gives you 2 more villagers, so you get more bricks. Tap HOUSE.',
-        target: () => [{ at: () => els.buildItem('house'), pass: true }, els.buildItem('tower'), els.buildItem('barracks')],
+        bubble: 'none',
+        target: () => [{ at: () => els.buildItem('house'), pass: true }],
         hand: { type: 'tap', at: () => els.buildItem('house') },
         next: () => api.buildSel() === 'house',
         skipIf: () => this.ordered,
       },
       {
-        text: 'Now tap the glowing spot to place it.',
+        bubble: 'none',
         enter: () => {
           houseSpot = api.houseSpot();
         },
-        target: () => [{ at: dropAt(() => houseSpot), pass: true }],
+        // any free spot works; the ring only suggests one
+        target: () => [{ at: () => api.mapRect(), pass: true, ring: false, pad: 0 }, { at: dropAt(() => houseSpot) }],
+        dim: false,
         hand: { type: 'tap', at: () => houseSpot && api.worldBox(houseSpot.x - 0.3, houseSpot.y - 0.3, houseSpot.x + 0.3, houseSpot.y + 0.3) },
         next: () => this.ordered || (api.buildGhost()?.valid && api.buildGhost()?.id === 'house'),
         skipIf: () => this.ordered,
       },
       {
-        text: 'Tap the button to build it!',
-        target: () => [{ at: els.confirmBtn, pass: true }],
+        bubble: 'none',
+        target: () => [{ at: els.confirmBtn, pass: true }, { at: () => api.mapRect(), pass: true, ring: false, pad: 0 }],
+        dim: false,
         hand: { type: 'tap', at: () => els.confirmBtn },
         next: () => this.ordered,
         skipIf: () => this.ordered,
       },
-      {
-        text: 'Your villagers will build it. Later, try a TOWER to shoot enemies and a BARRACKS to send soldiers.',
-        enter: freeze(false),
-        target: () => els.buildBtn,
-        next: 'tap',
-      },
 
-      // ── finding your way ──
-      { text: 'The MINIMAP shows the whole island. Tap it any time to look around.', target: () => els.minimap, next: 'tap', enter: freeze(true) },
+      // your turn
       {
-        text: 'When the red castle is off screen, this arrow points to it. Follow it to attack!',
-        enter: () => api.follow(),
-        skipIf: () => els.goalArrow.hidden,
-        target: () => {
-          const b = els.goalArrow.getBoundingClientRect();
-          return { x: b.left - 28, y: b.top - 28, w: 56, h: 64 };
-        },
-        delay: 0.3,
-        next: 'tap',
-      },
-      { text: 'Real matches last 5 minutes. If time runs out, the castle with more health wins.', target: () => els.clock, next: 'tap' },
-
-      // ── your turn ──
-      {
-        text: 'The last minute is a BRICK RUSH: double bricks! Here\'s one now. Send troops over the bridge and knock down the red castle!',
+        text: 'Your turn! Knock down the red castle.',
         enter: () => {
           R.rush = true;
           me.bricks = Math.max(me.bricks, 150);
           R.emit('banner', { text: 'BRICK RUSH!', sub: 'Double bricks', kind: 'elixir' });
+          api.follow();
         },
-        target: () => [els.brickBar, els.hand],
         next: 'tap',
+        bubble: 'mid',
         delay: 0.4,
       },
       {
@@ -477,24 +412,12 @@ export class TrainingCoach {
           this.final = true;
           this.shieldCastle = false;
           this.idleT = 5;
-          api.follow();
           if (this.ai) {
             this.ai.enabled = true;
             this.ai.t = 25;
           }
         },
         next: () => R.phase === 'ended',
-      },
-      {
-        text: 'You did it! You knocked down the red castle. Let\'s open your reward!',
-        enter: () => {
-          this.final = false;
-        },
-        skipIf: () => R.result?.winner !== 0,
-        delay: 2.4,
-        target: () => [{ at: () => document.querySelector('.results .res-actions .btn-gold'), pass: true }],
-        hand: { type: 'tap', at: () => document.querySelector('.results .res-actions .btn-gold') },
-        next: () => false,
       },
     ];
   }

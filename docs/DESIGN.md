@@ -32,7 +32,7 @@ Each source game supplies one part, and none of them needs a manual:
 | Source | Amount |
 | --- | --- |
 | Start | 120 |
-| Trickle | 1.2 per second (×2 in the Brick Rush) |
+| Trickle | 1.2 per second, +0.5 for every House (all ×2 in the Brick Rush). The brick bar shows the current rate. |
 | Villagers | Mine a brick pile for 3 s and carry 3 bricks home. You start with 4; each House adds 2. Lost villagers are replaced every 12 s. |
 | Bounties | 40 for the enemy hero, 40 for a tower, half the price of any other enemy building, 5 for a villager |
 
@@ -46,9 +46,9 @@ bridges or on brick piles.
 | Building | Cost | Size | HP | Effect |
 | --- | --- | --- | --- | --- |
 | Castle | — | 3×3 | 9000 | Shoots splash bricks (range 7.5). Spawns villagers. If it falls, you lose. |
-| House | 50 | 2×2 | 600 | +2 villagers, so more bricks |
-| Tower | 70 | 2×2 | 1500 | Shoots any enemy in range 6.5 |
-| Barracks | 110 | 3×2 | 1200 | Sends a Soldier to attack every 14 s (up to 3 alive per barracks) |
+| House | 50 | 2×2 | 900 | +2 villagers and +0.5 bricks/s. Pays for itself in well under a minute. |
+| Tower | 80 | 2×2 | 2400 | Heavy guard: 100 damage per shot with a little splash, range 7. Beats a lone Knight; a real push of two or three cards gets past it. |
+| Barracks | 110 | 3×2 | 1800 | Trains a Soldier every 6 s. Soldiers wait in front of the Barracks until a squad of 3 is ready, then attack together (up to 6 alive per Barracks). |
 
 ### Troops, spells and the hero
 
@@ -89,24 +89,23 @@ face an easy rival for their first two matches.
 ## First-time experience
 
 Modelled on card-battler tutorials: a new player taps "Tap to Play" and lands straight in a guided match. Foreman Bo
-(a builder in a hard hat) explains one thing at a time in a speech bubble. Everything except the thing to touch is
+(a builder in a hard hat) only explains what the screen does not make obvious. Everything except the thing to touch is
 dimmed and blocked, a pixel hand shows the gesture (tap, drag a card to a glowing spot, or drag the joystick), and the
-match pauses while a new idea is introduced.
+match pauses while a new idea is introduced. Self-explanatory parts of the HUD (health bars, the brick counter, card
+prices, the NEXT card, the minimap, the arrow, the clock) are not covered.
 
-1. **The goal:** the camera pans to the red castle, then your blue castle, then the health bars.
-2. **Hero:** walk with the joystick, beat two monsters, and blast a gang with POWER.
-3. **Economy:** bricks, villagers and the card prices.
-4. **Cards:** drag a Knight, see the NEXT card, follow the Knight across the river, watch the enemy defend, drop
-   Archers to stop the counter-attack, and Volley a group of skeletons.
-5. **Building:** BUILD, pick a House, tap the spot, confirm; Towers and Barracks are mentioned.
-6. **Finding your way:** the minimap, the enemy-castle arrow and the clock.
-7. **Your turn:** a Brick Rush starts and the player finishes the (weakened) red castle. If they stall, the hand
+1. **The goal:** knock down the red castle; the camera shows it.
+2. **Hero:** drag the left side to move (it attacks on its own), then tap POWER on a gang of skeletons.
+3. **Troops:** drag a Knight onto your side of the river and watch it march; the rival defends and counter-attacks,
+   and the player drops Archers in front of the castle.
+4. **Spells:** drag a Volley onto a group.
+5. **Building:** one line on why buildings matter, then the hand alone shows BUILD → House → spot → confirm.
+6. **Your turn:** a Brick Rush starts and the player finishes the (weakened) red castle. If they stall, the hand
    suggests a card.
 
-After the win, Bo opens the first Lucky Drop with the player (its first tap always upgrades it, and it holds enough
-Knights to level one up), asks for a name, and tours the menus with locked navigation: Realm and trophies, upgrade
-the Knight in Cards, the deck and collection, the Hero tab, the Shop's free gift and deals, Quests and the Trophy
-Road, the other modes, and finally the REALM CLASH button. A "Skip tutorial" button is always available.
+After the win the first Lucky Drop is fixed (its first tap always upgrades it, and it holds enough Knights to level one
+up). Back in the menu Bo asks for a name and shows one thing: levelling the Knight up in Cards. A "Skip tutorial"
+button is always available.
 
 ## Meta (card-game layer)
 

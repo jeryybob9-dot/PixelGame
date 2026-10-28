@@ -668,7 +668,7 @@ export const realmScreen = {
     const offs = [
       R.on('countdown', (n) => showBanner(String(n), 'count')),
       R.on('banner', ({ text, kind, sub }) => showBanner(text, kind, sub)),
-      R.on('built', ({ team, s }) => team === 0 && note(`${STRUCTURES[s.struct]?.name || 'Building'} finished${s.struct === 'house' ? ': +2 villagers' : ''}`, 'good')),
+      R.on('built', ({ team, s }) => team === 0 && note(`${STRUCTURES[s.struct]?.name || 'Building'} finished${s.struct === 'house' ? ': +2 villagers, +0.5 bricks/s' : ''}`, 'good')),
       R.on('structureLost', ({ team, s }) => {
         if (s.built < 1 || s.struct === 'keep') return;
         if (team === 0) note(`Our ${STRUCTURES[s.struct]?.name || 'building'} was destroyed`, 'bad');
@@ -692,6 +692,7 @@ export const realmScreen = {
           app.sfx('raid', { volume: 0.35 });
         }
       }),
+      R.on('squad', ({ team }) => team === 0 && note('A Soldier squad is marching!', 'good')),
       R.on('heroDeath', ({ team }) => note(team === 0 ? 'Your hero fell. Back in 5 seconds' : 'Enemy hero defeated! +40 bricks', team === 0 ? 'bad' : 'good')),
       R.on('end', (r) => onEnd(r)),
     ];
@@ -895,7 +896,7 @@ export const realmScreen = {
       setText(villagerChip.lastChild, 'vill', `${p.villagers}`);
       // bricks
       setText(brickNum, 'bricks', String(p.bricks));
-      setText(brickRate, 'rate', R.rush ? 'x2 RUSH' : '');
+      setText(brickRate, 'rate', `${R.rush ? 'RUSH ' : ''}+${(p.income || 0).toFixed(1)}/s`);
       brickBar.classList.toggle('rush', R.rush);
       // hand
       for (let i = 0; i < 4; i++) {

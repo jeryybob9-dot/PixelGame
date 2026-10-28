@@ -31,6 +31,7 @@ export const CARRY = 3; // bricks a villager carries home per trip
 export const MINE_TIME = 3;
 export const START_VILLAGERS = 4;
 export const HOUSE_VILLAGERS = 2;
+export const HOUSE_INCOME = 0.5; // passive bricks per second for each finished House
 export const VILLAGER_RESPAWN = 12; // seconds until a lost villager is replaced
 export const HERO_RESPAWN = 5;
 export const HERO_KILL_BRICKS = 40;
@@ -65,13 +66,14 @@ export const SOLDIER = { sprite: 'knight', hp: 620, dmg: 70, hs: 1.1, speed: 1.2
  */
 export const STRUCTURES = {
   keep: { name: 'Castle', cost: 0, w: 3, h: 3, hp: 9000, claim: 8, build: 0, sprite: 'keep', dmg: 85, hs: 1.0, range: 7.5, splash: 0.8, desc: 'Your castle. If it falls, you lose.' },
-  house: { name: 'House', cost: 50, w: 2, h: 2, hp: 600, claim: 3, build: 5, sprite: 'house', desc: '+2 villagers to mine more bricks.' },
-  tower: { name: 'Tower', cost: 70, w: 2, h: 2, hp: 1500, claim: 4, build: 6, sprite: 'princess_tower', dmg: 56, hs: 0.85, range: 6.5, desc: 'Shoots any enemy that comes close.' },
-  barracks: { name: 'Barracks', cost: 110, w: 3, h: 2, hp: 1200, claim: 3, build: 7, sprite: 'barracks', desc: 'Sends a Soldier to attack every 14s.' },
+  house: { name: 'House', cost: 50, w: 2, h: 2, hp: 900, claim: 3, build: 5, sprite: 'house', desc: '+2 villagers and +0.5 bricks/s.' },
+  tower: { name: 'Tower', cost: 80, w: 2, h: 2, hp: 2400, claim: 4, build: 5, sprite: 'princess_tower', dmg: 100, hs: 0.95, range: 7, splash: 0.5, desc: 'Heavy guard. Beats a lone Knight.' },
+  barracks: { name: 'Barracks', cost: 110, w: 3, h: 2, hp: 1800, claim: 3, build: 6, sprite: 'barracks', desc: 'Sends Soldiers in squads of 3.' },
 };
 export const BUILD_MENU = ['house', 'tower', 'barracks'];
-export const BARRACKS_EVERY = 14;
-export const BARRACKS_MAX = 3; // soldiers alive per barracks
+export const BARRACKS_EVERY = 6; // seconds per Soldier
+export const BARRACKS_SQUAD = 3; // Soldiers wait at the Barracks until the squad is full, then attack together
+export const BARRACKS_MAX = 6; // Soldiers alive per barracks (one squad out, one forming)
 
 /** Horde Nights monsters. */
 export const MONSTERS = {

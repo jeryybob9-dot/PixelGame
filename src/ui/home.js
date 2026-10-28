@@ -279,7 +279,7 @@ export function openHowTo(app) {
     ['Move', 'Drag on the left side of the island to walk your hero. It attacks enemies in range by itself; tap an enemy to focus it. POWER fires your hero\'s special attack. Your hero levels up by fighting, heals beside your castle, and its gadget fires by itself when it is hurt.'],
     ['Bricks', 'Bricks pay for everything. Your villagers mine them, and a few more trickle in every second. The last minute is the Brick Rush: double bricks!'],
     ['Troops', 'Drag a card onto your side of the river (or next to your hero). Troops march to the red castle on their own. They are tough, so a group of three or four is a real push.'],
-    ['Build', 'Tap BUILD and place a House (+2 villagers), a Tower (shoots enemies) or a Barracks (sends Soldiers to attack) on your side of the river.'],
+    ['Build', 'Tap BUILD and place a House (+2 villagers and +0.5 bricks a second), a Tower (a heavy guard) or a Barracks (sends Soldiers in squads of 3) on your side of the river.'],
     ['Progress', 'Wins give trophies, gold and a Lucky Drop. Tap the drop to try to upgrade it before opening. Unlock new Realms, upgrade cards, weapons and heroes between matches.'],
   ];
   const body = el('div.howto', null, ...items.map(([h, t]) => el('div.howto-item', null, el('h3', { text: h }), el('p', { text: t }))));

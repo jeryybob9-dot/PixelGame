@@ -30,7 +30,8 @@ The full design is in [`docs/DESIGN.md`](docs/DESIGN.md).
 
 **Village.**
 - Bricks are the only resource. Villagers mine brick piles and carry them home; a few more trickle in every second.
-- Three buildings: House (+2 villagers), Tower (shoots enemies) and Barracks (sends Soldiers to attack).
+- Three buildings that matter: House (+2 villagers and +0.5 bricks a second), Tower (a heavy guard that beats a
+  lone Knight) and Barracks (sends Soldiers in squads of 3).
 - Buildings stand on little team-coloured brick baseplates. Forests burn and regrow, and the sun sets as the clock
   runs down.
 
@@ -64,10 +65,9 @@ The full design is in [`docs/DESIGN.md`](docs/DESIGN.md).
   and unleash meteors, plagues, black holes and atomic bombs.
 - **Training:** the guided first match, which can be replayed any time.
 
-**A guided start.** New players go straight into a guided match. A builder called Foreman Bo explains one thing at a
-time, dims everything except the button to press, and shows the gesture with a pointing hand. Afterwards he opens the
-first reward with you and tours the menus: upgrade a card, the hero, the shop's free gift, quests, then your first
-real match.
+**A guided start.** New players go straight into a short guided match. A builder called Foreman Bo covers only what
+isn't obvious (moving, POWER, where troops go, defending, spells, building), dims everything except the button to
+press, and shows the gesture with a pointing hand. Afterwards he shows how to level a card up.
 
 **A storybook UI.** Menus are carved wooden boards with gold trim and steel corner brackets, title plaques, parchment
 pages, ribbon banners and glossy candy buttons. The wood, parchment and brick textures are pixel art painted in code

@@ -9,7 +9,6 @@ import { HEROES } from '../data/heroes.js';
 import { rollDrop, applyDrop, getProfile } from '../core/profile.js';
 import { drawSprite } from '../art/sprite-cache.js';
 import { cardTile, icon, countUp, animatedCanvas } from './components.js';
-import { guideFirstDrop } from './tour.js';
 
 export const luckyScreen = {
   mount(root, app, params = {}) {
@@ -138,11 +137,7 @@ export const luckyScreen = {
       }, 400 + items.length * 280);
     }
 
-    const stopGuide = params.tutorial ? guideFirstDrop(app, () => phase) : null;
-    return () => {
-      chestCv.stop?.();
-      stopGuide?.();
-    };
+    return () => chestCv.stop?.();
   },
 };
 

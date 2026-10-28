@@ -12,7 +12,7 @@ import { updateHero, updatePet, upgradeForm, formUpgradeCost, gadgetReady, useGa
 import {
   T, BLOCKING, BUILDABLE, TILE_SPEED, WILD, MATCH_LENGTH, RUSH_AT, BRICKS_START, BRICK_INCOME, CARD_BRICKS, cardBricks,
   START_VILLAGERS, HOUSE_VILLAGERS, VILLAGER_RESPAWN, HERO_RESPAWN, HERO_KILL_BRICKS, SUMMON_HERO_RADIUS, VILLAGER, SOLDIER,
-  STRUCTURES, BARRACKS_EVERY, BARRACKS_MAX, MONSTERS, TROOP_HP, TROOP_DMG, TROOP_SPEED, troopCount, SPELL_VS_TROOPS,
+  STRUCTURES, BARRACKS_EVERY, BARRACKS_MAX, BARRACKS_SQUAD, HOUSE_INCOME, MONSTERS, TROOP_HP, TROOP_DMG, TROOP_SPEED, troopCount, SPELL_VS_TROOPS,
   SPELL_VS_BUILDINGS, HERO_VS_TROOPS, HERO_XP, HERO_XP_PER_SEC, HOME_HEAL, HP_PER_COST, TROOP_VS_BUILDINGS,
 } from './constants.js';
 import { generateRealm } from './worldgen.js';
@@ -616,6 +616,7 @@ export class Realm extends Battle {
 
   /** Troops and soldiers march on the enemy castle; buildings-only troops take the closest building on the way. */
   decideGoal(e) {
+    if (e.hold) return e.hold; // a Soldier waiting for its squad
     if (e.team === WILD) {
       // Horde monsters go for the nearest building of the village
       let best = null;
@@ -863,8 +864,9 @@ export class Realm extends Battle {
     p.warriors = c.soldiers;
     p.pop = c.villagers;
     p.popCap = p.villagerGoal;
-    // bricks trickle in (twice as fast in the Brick Rush)
-    p.income = BRICK_INCOME * (this.rush ? 2 : 1);
+    // bricks trickle in, faster with every House (twice as fast in the Brick Rush)
+    p.houses = this.structuresOf(team, 'house').length;
+    p.income = (BRICK_INCOME + p.houses * HOUSE_INCOME) * (this.rush ? 2 : 1);
     p.brickT += p.income * dt;
     if (p.brickT >= 1) {
       const n = Math.floor(p.brickT);
@@ -954,14 +956,29 @@ export class Realm extends Battle {
       s.anim = 'train';
       if (s.trainT <= 0) {
         s.trainT = BARRACKS_EVERY;
-        const u = this.spawnUnit(s.team, 'soldier', s.x + (Math.random() - 0.5), s.y + (s.team === 0 ? -1.4 : 1.4), p.kingLevel, { deployT: 0.3 });
+        const ahead = s.team === 0 ? -1 : 1;
+        const u = this.spawnUnit(s.team, 'soldier', s.x + (Math.random() - 0.5), s.y + ahead * 1.4, p.kingLevel, { deployT: 0.3 });
         if (u) {
           u.role = 'soldier';
           u.home = s.id;
+          // wait at the rally point in front of the barracks until the squad is full
+          const n = (s.squad ||= []).length;
+          u.hold = { x: s.x + (n - 1) * 0.9, y: s.y + ahead * (s.fp.h / 2 + 1.6) };
+          s.squad.push(u);
           p.stats.warriors++;
           this.puff(u.x, u.y, '#e8e2d0', 6);
           if (s.team === 0) this.sfx('deploy', { volume: 0.4, pitch: 1.2 });
         }
+      }
+      s.squad = (s.squad || []).filter((u) => u.alive);
+      if (s.squad.length >= BARRACKS_SQUAD) {
+        for (const u of s.squad) {
+          u.hold = null;
+          u.goalCache = null;
+        }
+        s.squad = [];
+        this.emit('squad', { team: s.team, s });
+        if (s.team === 0) this.sfx('horn', { volume: 0.5 });
       }
     }
   }

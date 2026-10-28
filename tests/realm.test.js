@@ -5,7 +5,7 @@ import { RealmAI } from '../src/realm/realm-ai.js';
 import { HordeDirector } from '../src/realm/horde.js';
 import { generateRealm } from '../src/realm/worldgen.js';
 import { Grid } from '../src/realm/grid.js';
-import { T, BLOCKING, STRUCTURES, MATCH_LENGTH, RUSH_AT, BRICK_INCOME, BRICKS_START, START_VILLAGERS, HOUSE_VILLAGERS, cardBricks } from '../src/realm/constants.js';
+import { T, BLOCKING, STRUCTURES, MATCH_LENGTH, RUSH_AT, BRICK_INCOME, BRICKS_START, START_VILLAGERS, HOUSE_VILLAGERS, HOUSE_INCOME, BARRACKS_SQUAD, cardBricks } from '../src/realm/constants.js';
 import { damage } from '../src/battle/combat.js';
 import { REALM_TILES } from '../src/art/realm-tiles.js';
 import { ARENAS } from '../src/data/arenas.js';
@@ -89,6 +89,55 @@ test('villagers mine bricks and build ordered buildings', () => {
   assert.equal(res.s.built, 1, `house built ${res.s.built}`);
   assert.equal(p.popCap, START_VILLAGERS + HOUSE_VILLAGERS);
   assert.ok(p.stats.bricks > 0, 'no bricks delivered');
+});
+
+/** Find a legal spot for a building near the team's castle. */
+const spotFor = (R, team, id) => {
+  const k = R.players[team].keep;
+  for (let y = Math.floor(k.y) - 9; y < k.y + 4; y++) for (let x = Math.floor(k.x) - 8; x < k.x + 8; x++) if (!R.placementProblem(team, id, x, y)) return { x, y };
+  return null;
+};
+
+test('a House adds villagers and passive income', () => {
+  const R = make(41);
+  R.silent = true;
+  run(R, 3.5);
+  const p = R.players[0];
+  const at = spotFor(R, 0, 'house');
+  R.placeStructure(0, 'house', at.x, at.y, { instant: true });
+  run(R, 0.2);
+  assert.equal(p.income, BRICK_INCOME + HOUSE_INCOME);
+});
+
+test('a Tower beats a lone Knight', () => {
+  const R = make(42);
+  R.silent = true;
+  run(R, 3.5);
+  const at = spotFor(R, 0, 'tower');
+  const t = R.placeStructure(0, 'tower', at.x, at.y, { instant: true });
+  // move both heroes out of the way
+  for (const p of R.players) if (p.hero) p.hero.alive = false;
+  const k = R.spawnUnit(1, 'knight', t.x, t.y - 7, 1, { deployT: 0.1 });
+  run(R, 30);
+  assert.equal(k.alive, false, 'knight survived');
+  assert.ok(t.alive, 'tower fell');
+});
+
+test('a Barracks sends its Soldiers out together as a squad', () => {
+  const R = make(43);
+  R.silent = true;
+  run(R, 3.5);
+  const at = spotFor(R, 0, 'barracks');
+  const b = R.placeStructure(0, 'barracks', at.x, at.y, { instant: true });
+  let squads = 0;
+  R.on('squad', ({ team }) => team === 0 && squads++);
+  const soldiers = () => R.entities.filter((e) => e.alive && e.role === 'soldier' && e.team === 0);
+  run(R, 6);
+  assert.ok(soldiers().length >= 1 && soldiers().every((u) => u.hold), 'soldiers wait while the squad forms');
+  run(R, 14);
+  assert.ok(squads >= 1, 'no squad was sent');
+  assert.ok(soldiers().filter((u) => !u.hold).length >= Math.min(BARRACKS_SQUAD, soldiers().length) - 1);
+  void b;
 });
 
 test('buildings must be inside your own territory', () => {
