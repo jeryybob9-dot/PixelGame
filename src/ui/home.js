@@ -128,16 +128,15 @@ const battleTab = {
     const battleBtn = el('button.btn.btn-battle', { type: 'button', onclick: () => {
       app.sfx('ui_click');
       if (!getProfile().tutorialDone) {
-        app.confirm({ title: 'New here?', text: 'Play a guided first match? It teaches your hero, building, Faith and cards.', yes: 'Training', no: 'Skip' })
+        app.confirm({ title: 'New here?', text: 'Play a guided first match? It shows you how to win in about 2 minutes.', yes: 'Training', no: 'Skip' })
           .then((y) => app.go('realm', { mode: y ? 'training' : 'clash' }));
         return;
       }
       app.go('realm', { mode: 'clash' });
-    } }, el('span.bb-label', { text: 'REALM CLASH' }), el('small', { text: `vs ${arena.ai.name}, rival god` }));
+    } }, el('span.bb-label', { text: 'REALM CLASH' }), el('small', { text: `Destroy ${arena.ai.name}'s castle!` }));
 
-    const modes = el('div.mode-grid.four', null,
+    const modes = el('div.mode-grid.three', null,
       modeTile('Horde Nights', `Best: ${p.stats.bestNights || 0} nights`, 'wolf', () => app.go('realm', { mode: 'horde' })),
-      modeTile('Arena Duel', 'Quick lane battle', 'princess_tower', () => app.go('battle', { mode: 'duel' })),
       modeTile('God Box', 'Sandbox world', 'spell_meteor', () => app.go('godbox')),
       modeTile('Training', p.tutorialDone ? 'Replay the guide' : 'Start here!', 'emote_thumbs', () => app.go('realm', { mode: 'training' }), !p.tutorialDone));
 
@@ -279,11 +278,11 @@ export function openSettings(app) {
 
 export function openHowTo(app) {
   const items = [
-    ['Realm Clash', 'You and a rival god share a small island. Topple the rival Keep to win at once, or rule more land (Dominion) when the Age of Chaos ends after 8 minutes.'],
-    ['Fight', 'Drag on the left side of the island to steer your hero with the joystick. It fires at enemies in range by itself. Tap the island to walk or attack. Spells, gadget and FORM are on the right.'],
-    ['Build', 'Tap BUILD, pick a building and tap inside your blue borders. Villagers construct it, mine brick deposits and repair. Houses grow your tribe, Barracks train Warriors, Temples add Faith, Outposts claim land far away.'],
-    ['Rule', 'Your tribe lives on its own. Nests send monsters at night, fires spread through forests, and four Ages change the rules. Clear nests for Red Bricks (powers for the match) and capture the Shrine in the middle.'],
-    ['Cast', 'Faith comes from your worshippers. Drag a card onto your land, or next to your hero, to summon it. Spells land anywhere. The horn sends your Warriors to CHARGE or back to GUARD.'],
+    ['Goal', 'Knock down the RED castle across the river. Keep your BLUE castle standing. If the 5 minutes run out, the castle with more health wins.'],
+    ['Move', 'Drag on the left side of the island to walk your hero. It attacks enemies in range by itself; tap an enemy to focus it. POWER fires your hero\'s special attack. Your hero levels up by fighting, heals beside your castle, and its gadget fires by itself when it is hurt.'],
+    ['Bricks', 'Bricks pay for everything. Your villagers mine them, and a few more trickle in every second. The last minute is the Brick Rush: double bricks!'],
+    ['Troops', 'Drag a card onto your side of the river (or next to your hero). Troops march to the red castle on their own. They are tough, so a group of three or four is a real push.'],
+    ['Build', 'Tap BUILD and place a House (+2 villagers), a Tower (shoots enemies) or a Barracks (sends Soldiers to attack) on your side of the river.'],
     ['Progress', 'Wins give trophies, gold and a Lucky Drop. Tap the drop to try to upgrade it before opening. Unlock new Realms, upgrade cards, weapons and heroes between matches.'],
   ];
   const body = el('div.howto', null, ...items.map(([h, t]) => el('div.howto-item', null, el('h3', { text: h }), el('p', { text: t }))));

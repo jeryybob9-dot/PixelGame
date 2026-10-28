@@ -1,27 +1,27 @@
-// Realm Clash: a living island, two villages, two heroes and two gods' decks. Extends the battle simulation so all
-// combat, hero, spell and card code is shared. See docs/DESIGN.md.
+// Realm Clash: two castles on a small island. Destroy theirs before they destroy yours.
+// Villagers mine bricks; bricks pay for troop and spell cards and for three buildings (House, Tower, Barracks).
+// Extends the battle simulation so all combat, hero, spell and card code is shared. See docs/DESIGN.md.
 
 import { Battle, STEP } from '../battle/battle.js';
 import { clamp, dist, dist2 } from '../core/util.js';
 import { CARDS, EXTRA_UNITS, levelMult } from '../data/cards.js';
-import { ELEMENTS } from '../data/heroes.js';
 import { kingMult } from '../data/progression.js';
-import { tickStatus, damage, kill, updateProjectiles, updateAreas, isBuildingKind } from '../battle/combat.js';
-import { updateTroop, updateBuilding, updateTower, separate, findTarget } from '../battle/units.js';
-import { updateHero, updatePet, createHero, createPet } from '../battle/hero.js';
+import { tickStatus, kill, updateProjectiles, updateAreas, isBuildingKind } from '../battle/combat.js';
+import { updateTroop, updateBuilding, updateTower, separate } from '../battle/units.js';
+import { updateHero, updatePet, upgradeForm, formUpgradeCost, gadgetReady, useGadget } from '../battle/hero.js';
 import {
-  REALM_W, REALM_H, T, BLOCKING, BUILDABLE, TILE_SPEED, WILD, MATCH_LENGTH, AGES, ageIndexAt, DAY_LENGTH, NIGHT_LENGTH,
-  FAITH_MAX, FAITH_START, FAITH_BASE, FAITH_PER_VILLAGER, FAITH_PER_TEMPLE, FAITH_SHRINE, BRICKS_START, BRICK_TRICKLE,
-  VILLAGER_EVERY, KEEP_POP, HOUSE_POP, START_VILLAGERS, HERO_RESPAWN, HERO_KILL_BRICKS, NEST_BRICKS, SUMMON_HERO_RADIUS,
-  ELEMENT_COST, VILLAGER, WARRIOR, STRUCTURES, BARRACKS_EVERY, BARRACKS_MAX, NEST, MONSTERS, RELICS, DOMINION,
+  T, BLOCKING, BUILDABLE, TILE_SPEED, WILD, MATCH_LENGTH, RUSH_AT, BRICKS_START, BRICK_INCOME, CARD_BRICKS, cardBricks,
+  START_VILLAGERS, HOUSE_VILLAGERS, VILLAGER_RESPAWN, HERO_RESPAWN, HERO_KILL_BRICKS, SUMMON_HERO_RADIUS, VILLAGER, SOLDIER,
+  STRUCTURES, BARRACKS_EVERY, BARRACKS_MAX, MONSTERS, TROOP_HP, TROOP_DMG, TROOP_SPEED, troopCount, SPELL_VS_TROOPS,
+  SPELL_VS_BUILDINGS, HERO_VS_TROOPS, HERO_XP, HERO_XP_PER_SEC, HOME_HEAL, HP_PER_COST, TROOP_VS_BUILDINGS,
 } from './constants.js';
 import { generateRealm } from './worldgen.js';
-import { Grid, computeTerritory } from './grid.js';
+import { Grid } from './grid.js';
 import { updateVillager, assignJobs } from './village.js';
 
 // realm-only unit types join the shared unit table so spawnUnit() can build them
 Object.assign(EXTRA_UNITS, {
-  warrior: WARRIOR,
+  soldier: SOLDIER,
   wolf: MONSTERS.wolf,
   bandit: MONSTERS.bandit,
   wild_skeleton: MONSTERS.skeleton,
@@ -53,46 +53,49 @@ export class Realm extends Battle {
     for (let i = 0; i < this.tiles.length; i++) if (this.tiles[i] === T.FOREST) this.origForest[i] = 1;
     this.regrowT = new Float32Array(this.W * this.H);
     this.grid = new Grid(this.W, this.H, this.tiles);
-    this.owner = new Int8Array(this.W * this.H).fill(-1);
-    this.territoryDirty = true;
-    this.territoryT = 0;
-    this.territoryVersion = 0;
     this.tileChanges = [];
     this.piles = [];
     this.deposits = this.map.deposits.map((d, i) => ({ id: i + 1, ...d, max: d.amount }));
     this.structures = [];
     this.pickups = [];
-    this.ageIdx = 0;
-    this.night = false;
-    this.nightK = 0; // 0 day .. 1 night, eased for the renderer
-    this.disasterT = 14;
-    this.matchLength = MATCH_LENGTH;
-    this.pathBudget = 0;
-    this.dominion = [0, 0];
-    this.dominionT = 0;
-    this.shrine = null;
-    this.nests = [];
-    this.pending = [];
     this.warnings = [];
+    this.pending = [];
+    this.nests = [];
+    this.shrine = null;
+    this.ageIdx = 0;
+    this.rush = false;
+    this.night = false;
+    this.nightK = 0; // 0 day .. 1 night: the sun sets as the clock runs down
+    this.matchLength = opts.matchTime ?? MATCH_LENGTH;
+    this.pathBudget = 0;
+    // your half of the island is the river's side your castle is on
+    this.owner = new Int8Array(this.W * this.H).fill(-1);
+    for (let y = 0; y < this.H; y++) {
+      for (let x = 0; x < this.W; x++) {
+        const i = y * this.W + x;
+        if (WATER_TILES.has(this.tiles[i])) continue;
+        this.owner[i] = y >= this.H / 2 ? 0 : 1;
+      }
+    }
+    this.territoryVersion = 1;
   }
 
   makePlayer(team, setup) {
     const p = super.makePlayer(team, setup);
-    p.elixir = FAITH_START; // Faith is stored where the shared card code expects it
     p.bricks = BRICKS_START;
+    p.elixir = 0; // unused here: cards cost bricks
     p.keep = null;
-    p.villagerT = 3;
-    p.pop = 0;
-    p.popCap = KEEP_POP;
+    p.income = BRICK_INCOME;
     p.villagers = 0;
-    p.warriors = 0;
-    p.stance = 'guard';
-    p.perks = {};
-    p.relics = [];
-    p.faithRate = FAITH_BASE;
+    p.villagerGoal = START_VILLAGERS;
+    p.villagerT = 0;
+    p.soldiers = 0;
     p.destroyed = 0;
     p.jobT = 0;
-    Object.assign(p.stats, { built: 0, relics: 0, nests: 0, destroyed: 0, villagers: 0, warriors: 0, shrine: 0 });
+    p.perks = {};
+    p.relics = [];
+    p.heroXp = 0;
+    Object.assign(p.stats, { built: 0, relics: 0, nests: 0, destroyed: 0, villagers: 0, warriors: 0 });
     return p;
   }
 
@@ -112,26 +115,15 @@ export class Realm extends Battle {
       }
       if (p.setup.heroId) this.spawnHero(team);
     }
-    // neutral shrine in the centre
-    const sh = m.shrine;
-    this.shrine = this.placeStructure(-1, 'shrine', Math.floor(sh.x) - 1, Math.floor(sh.y) - 1, { instant: true });
-    for (const n of m.nests) this.spawnNest(n.x, n.y, n.kind);
     for (const c of m.critters) this.spawnCritter(c.x, c.y);
-    this.recomputeTerritory();
   }
 
-  // ───────────────────────── structures ─────────────────────────
-
-  /** Footprint top-left tile for a structure centred near (x, y). */
-  footprintAt(id, x, y) {
-    const d = id === 'shrine' ? { w: 2, h: 2 } : id === 'nest' ? { w: 2, h: 1 } : STRUCTURES[id];
-    return { x0: Math.round(x - d.w / 2), y0: Math.round(y - d.h / 2), w: d.w, h: d.h };
-  }
+  // ───────────────────────── buildings ─────────────────────────
 
   /** Can `team` place structure `id` with its footprint's top-left at (x0, y0)? Returns a reason string or null. */
   placementProblem(team, id, x0, y0) {
     const def = STRUCTURES[id];
-    if (!def) return 'unknown';
+    if (!def || id === 'keep') return 'unknown';
     for (let y = y0; y < y0 + def.h; y++) {
       for (let x = x0; x < x0 + def.w; x++) {
         if (!this.grid.inside(x, y)) return 'edge';
@@ -146,17 +138,14 @@ export class Realm extends Battle {
       if (d.amount <= 0) continue;
       if (d.x >= x0 - 0.5 && d.x <= x0 + def.w + 0.5 && d.y >= y0 - 0.5 && d.y <= y0 + def.h + 0.5) return 'deposit';
     }
-    // do not wall in a keep completely: keep the tiles right around keeps free of walls
-    if (id === 'wall') {
-      for (const p of this.players) {
-        const k = p?.keep;
-        if (k && Math.abs(x0 + 0.5 - k.x) < 2.6 && Math.abs(y0 + 0.5 - k.y) < 2.6) return 'too close';
-      }
+    // keep the bridges and the road next to them open
+    for (const b of this.map.bridges || []) {
+      if (Math.abs(b.x - (x0 + def.w / 2)) < def.w / 2 + 1.2 && Math.abs(b.y - (y0 + def.h / 2)) < def.h / 2 + 2) return 'bridge';
     }
     return null;
   }
 
-  /** Spend bricks and put down a scaffold (villagers build it). */
+  /** Spend bricks and put down a building site (villagers build it). */
   orderBuild(team, id, x0, y0) {
     const p = this.players[team];
     const def = STRUCTURES[id];
@@ -174,10 +163,8 @@ export class Realm extends Battle {
   }
 
   placeStructure(team, id, x0, y0, { instant = false } = {}) {
-    const isShrine = id === 'shrine';
-    const def = isShrine ? { name: 'Shrine', w: 2, h: 2, hp: 1, claim: 5, build: 0, sprite: 'temple' } : STRUCTURES[id];
-    const relHp = team >= 0 && this.players[team]?.perks.walls ? 1.25 : 1;
-    const hp = def.hp * relHp;
+    const def = STRUCTURES[id];
+    const hp = def.hp;
     const tower = id === 'keep' || id === 'tower';
     const e = {
       id: this.nextId++,
@@ -189,10 +176,10 @@ export class Realm extends Battle {
       team,
       x: x0 + def.w / 2,
       y: y0 + def.h / 2,
-      r: Math.max(def.w, def.h) * 0.5 * (def.w === 1 ? 0.9 : 0.78),
-      h: id === 'keep' ? 2.6 : id === 'tower' ? 2.4 : id === 'wall' ? 1 : 1.5,
+      r: Math.max(def.w, def.h) * 0.5 * 0.78,
+      h: id === 'keep' ? 2.6 : id === 'tower' ? 2.4 : 1.5,
       fp: { x0, y0, w: def.w, h: def.h },
-      hp: instant ? hp : Math.max(1, hp * 0.1),
+      hp: instant ? hp : Math.max(1, hp * 0.15),
       maxHp: hp,
       built: instant ? 1 : 0,
       buildTime: def.build,
@@ -202,7 +189,7 @@ export class Realm extends Battle {
       range: def.range || 0,
       targets: def.dmg ? 'both' : 'none',
       proj: id === 'keep' ? 'brick' : 'arrow',
-      splash: 0,
+      splash: def.splash || 0,
       special: {},
       alive: true,
       active: true,
@@ -216,22 +203,15 @@ export class Realm extends Battle {
       level: 1,
       anim: 'idle',
       mass: 999,
-      isWall: id === 'wall',
+      isWall: false,
       age: 0,
       costShare: (def.cost || 20) / 10,
-      untargetable: isShrine,
-      workers: 0,
-      trainT: BARRACKS_EVERY * 0.5,
+      trainT: BARRACKS_EVERY * 0.4,
     };
-    if (isShrine) {
-      e.capTeam = -1;
-      e.capProg = 0;
-    }
     this.entities.push(e);
     if (tower) this.towers.push(e);
     this.structures.push(e);
-    this.grid.setFootprint(x0, y0, def.w, def.h, team, e.id, e.isWall);
-    if (instant) this.territoryDirty = true;
+    this.grid.setFootprint(x0, y0, def.w, def.h, team, e.id, false);
     return e;
   }
 
@@ -240,15 +220,20 @@ export class Realm extends Battle {
     if (s.built >= 1 || !s.alive) return;
     const before = s.built;
     s.built = Math.min(1, s.built + amount);
-    s.hp = Math.min(s.maxHp, s.hp + s.maxHp * 0.9 * (s.built - before));
+    s.hp = Math.min(s.maxHp, s.hp + s.maxHp * 0.85 * (s.built - before));
     if (s.built >= 1) {
-      s.hp = Math.max(s.hp, s.maxHp * 0.92);
-      this.territoryDirty = true;
+      s.hp = Math.max(s.hp, s.maxHp * 0.95);
       this.puff(s.x, s.y, '#e8dcc0', 10);
       this.sparkle(s.x, s.y - 0.6, 1.2, '#ffe9a8', 12);
       this.sfx('built', { volume: s.team === 0 ? 0.8 : 0.35 });
       const p = this.players[s.team];
-      if (p) p.stats.built++;
+      if (p) {
+        p.stats.built++;
+        if (s.struct === 'house') {
+          p.villagerGoal += HOUSE_VILLAGERS;
+          for (let i = 0; i < HOUSE_VILLAGERS; i++) this.spawnVillager(s.team, s.x + (i ? 0.8 : -0.8), s.y + s.fp.h / 2 + 0.4);
+        }
+      }
       this.emit('built', { team: s.team, s });
     }
   }
@@ -256,7 +241,6 @@ export class Realm extends Battle {
   freeStructure(s) {
     this.grid.setFootprint(s.fp.x0, s.fp.y0, s.fp.w, s.fp.h, null, s.id);
     this.structures = this.structures.filter((o) => o !== s);
-    this.territoryDirty = true;
   }
 
   structuresOf(team, id = null, builtOnly = true) {
@@ -307,51 +291,9 @@ export class Realm extends Battle {
     return v;
   }
 
-  spawnNest(x, y, kind) {
-    const fp = this.footprintAt('nest', x, y);
-    const e = {
-      id: this.nextId++,
-      kind: 'building',
-      struct: 'nest',
-      nestKind: kind,
-      sprite: 'nest',
-      team: WILD,
-      x: fp.x0 + 1,
-      y: fp.y0 + 0.5,
-      fp,
-      r: 0.85,
-      h: 1,
-      hp: NEST.hp,
-      maxHp: NEST.hp,
-      built: 1,
-      dmg: 0,
-      hs: 1,
-      range: 0,
-      targets: 'none',
-      special: {},
-      alive: true,
-      deployT: 0,
-      status: {},
-      flash: 0,
-      attackCd: 0,
-      shield: 0,
-      anim: 'idle',
-      mass: 999,
-      age: Math.random() * 3,
-      spawnT: 2,
-      guards: [],
-      costShare: 4,
-      level: 1,
-    };
-    this.entities.push(e);
-    this.nests.push(e);
-    this.grid.setFootprint(fp.x0, fp.y0, fp.w, fp.h, WILD, e.id);
-    return e;
-  }
-
   spawnMonster(kind, x, y, extra = {}) {
     const id = kind === 'skeleton' ? 'wild_skeleton' : kind;
-    const lvl = this.horde ? this.horde.level : 1 + this.ageIdx;
+    const lvl = this.horde ? this.horde.level : 1;
     const u = this.spawnUnit(WILD, id, x, y, lvl, { deployT: 0.4, ...extra });
     if (u) {
       u.role = 'monster';
@@ -390,17 +332,14 @@ export class Realm extends Battle {
     return c;
   }
 
-  spawnPickup(type, x, y, extra = {}) {
-    const p = { id: this.nextId++, kind: 'pickup', type, x, y, r: 0.3, h: 0.4, team: -1, alive: true, untargetable: true, noCollide: true, status: {}, age: 0, deployT: 0, ...extra };
-    this.entities.push(p);
-    this.pickups.push(p);
-    return p;
-  }
-
   /** Card buildings and spell walls also block tiles in the realm. */
   spawnBuilding(team, cardOrId, x, y, level = 1, extra = {}) {
     const b = super.spawnBuilding(team, cardOrId, x, y, level, extra);
     if (!b) return b;
+    if (team === 0 || team === 1) {
+      b.hp *= 1.6;
+      b.maxHp *= 1.6;
+    }
     const tx = Math.floor(b.x);
     const ty = Math.floor(b.y);
     if (this.grid.inside(tx, ty) && this.grid.occ[ty * this.W + tx] === 0) {
@@ -410,17 +349,36 @@ export class Realm extends Battle {
     return b;
   }
 
+  /** Troops in the realm are sturdier and quicker than in the lane arena, so armies matter. */
   spawnUnit(team, cardOrUnitId, x, y, level = 1, extra = {}) {
     const u = super.spawnUnit(team, cardOrUnitId, x, y, level, extra);
-    if (u && (team === 0 || team === 1) && this.players[team]?.perks.hymn) u.dmg *= 1.15;
-    if (u) this.landSafely(u);
+    if (!u) return u;
+    if (team === 0 || team === 1) {
+      const k = (extra.countBoost || 1) * TROOP_HP;
+      u.hp *= k;
+      u.maxHp *= k;
+      const floor = (extra.hpFloor || 0) * levelMult(level);
+      if (u.maxHp < floor) u.hp = u.maxHp = floor;
+      u.buildingBonus = TROOP_VS_BUILDINGS;
+      u.dmg *= TROOP_DMG * (extra.countBoost ? Math.sqrt(extra.countBoost) : 1);
+      u.speed *= TROOP_SPEED;
+    }
+    this.landSafely(u);
     return u;
   }
 
   spawnHero(team) {
     const h = super.spawnHero(team);
-    if (this.players[team]?.perks.might) h.dmgBoost = 1.2;
+    this.setupHero(h);
     return h;
+  }
+
+  /** One Power button: the first spell is ready from the start, the second replaces it at level 3. */
+  setupHero(h) {
+    if (!h) return;
+    const s = h.def.spells;
+    h.def = { ...h.def, spells: [{ ...s[0], form: 1 }, { ...s[1], form: 3 }] };
+    h.vsTroops = HERO_VS_TROOPS;
   }
 
   // ───────────────────────── cards ─────────────────────────
@@ -432,7 +390,7 @@ export class Realm extends Battle {
     return this.owner[ty * this.W + tx];
   }
 
-  /** Is (x, y) a legal summon spot for `team`? */
+  /** Is (x, y) a legal summon spot for `team`? Your half of the island, or right next to your hero. */
   summonOk(team, x, y, flying = false) {
     const tx = Math.floor(x);
     const ty = Math.floor(y);
@@ -460,7 +418,6 @@ export class Realm extends Battle {
       return true;
     };
     if (ok(px, py)) return { x: px, y: py };
-    // snap to the closest legal tile nearby
     let best = null;
     let bd = 2.6 * 2.6;
     for (let dy = -3; dy <= 3; dy++) {
@@ -477,15 +434,61 @@ export class Realm extends Battle {
     return best;
   }
 
+  /** Cards cost bricks in Realm Clash. */
+  playCard(team, slot, x, y) {
+    if (this.phase !== 'play') return { ok: false, reason: 'not-started' };
+    const p = this.players[team];
+    const cardId = p.hand[slot];
+    const card = CARDS[cardId];
+    if (!card) return { ok: false, reason: 'no-card' };
+    const cost = cardBricks(card);
+    if (p.bricks < cost) return { ok: false, reason: 'bricks' };
+    const pt = this.previewPlacement(team, cardId, x, y);
+    if (!pt) return { ok: false, reason: 'placement' };
+    p.bricks -= cost;
+    p.hand[slot] = p.queue.shift();
+    p.queue.push(cardId);
+    p.lastPlayed = cardId;
+    p.stats.cardsPlayed++;
+    const level = p.setup.cardLevels?.[cardId] ?? 1;
+    this.deploy(team, card, pt.x, pt.y, level);
+    this.emit('play', { team, cardId, x: pt.x, y: pt.y });
+    return { ok: true };
+  }
+
   deploy(team, card, x, y, level) {
     if (card.type === 'troop' && card.unit.special?.builder) {
-      const n = Math.max(2, card.unit.count || 1);
-      for (let i = 0; i < n; i++) this.spawnVillager(team, x + (i - (n - 1) / 2) * 0.7, y);
+      const p = this.players[team];
+      if (p) p.villagerGoal += 2;
+      for (let i = 0; i < 2; i++) this.spawnVillager(team, x + (i - 0.5) * 0.7, y);
       this.sparkle(x, y - 0.4, 1, '#ffe9a8', 12);
       this.sfx('deploy');
       return;
     }
+    if (card.type === 'troop') {
+      // swarms arrive as a few sturdy units instead of many fragile ones
+      const u = card.unit;
+      const printed = u.count || 1;
+      const n = troopCount(printed);
+      const boost = printed / n;
+      const spread = n === 1 ? 0 : 0.6;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + (team === 0 ? -Math.PI / 2 : Math.PI / 2);
+        const e = this.spawnUnit(team, card.id, x + Math.cos(a) * spread, y + Math.sin(a) * spread * 0.8, level, { deployT: 1 + i * 0.05, countBoost: boost, hpFloor: (card.cost * HP_PER_COST) / n });
+        if (e) e.summoned = true;
+      }
+      this.sfx('deploy');
+      this.dust(x, y, 0.8);
+      return;
+    }
     super.deploy(team, card, x, y, level);
+  }
+
+  /** How hard a spell hits this target. */
+  spellMult(e) {
+    if (isBuildingKind(e)) return SPELL_VS_BUILDINGS;
+    if (e.kind === 'troop' || e.kind === 'hero' || e.kind === 'pet') return SPELL_VS_TROOPS;
+    return 1;
   }
 
   // ───────────────────────── orders ─────────────────────────
@@ -500,17 +503,12 @@ export class Realm extends Battle {
     }
   }
 
-  setStance(team, stance) {
-    const p = this.players[team];
-    if (!p || p.stance === stance) return;
-    p.stance = stance;
-    this.emit('stance', { team, stance });
-    if (stance === 'charge') this.sfx('horn', { volume: 0.8 });
-    else this.sfx('ui_back', { volume: 0.5 });
-  }
-
-  canElementTower(team, tower) {
-    return tower && tower.alive && tower.team === team && tower.struct === 'tower' && tower.built >= 1 && !tower.element && this.players[team].bricks >= ELEMENT_COST;
+  /** The Power button: the best ability that is ready. */
+  heroPower(team) {
+    const h = this.players[team]?.hero;
+    if (!h || !h.alive) return false;
+    if (h.form >= 3 && this.heroSpell(team, 1)) return true;
+    return this.heroSpell(team, 0);
   }
 
   emote(team, id) {
@@ -542,7 +540,6 @@ export class Realm extends Battle {
     const tx = Math.floor(e.x);
     const ty = Math.floor(e.y);
     if (!this.blockedAt(tx, ty)) {
-      // keep a little distance from blocked neighbours so bodies do not overlap the shore
       const m = 0.22;
       const fx = e.x - tx;
       const fy = e.y - ty;
@@ -603,11 +600,9 @@ export class Realm extends Battle {
       }
       e.path = p;
     }
-    // advance past reached waypoints
     while (p.i < p.pts.length - 1 && dist2(e.x, e.y, p.pts[p.i].x, p.pts[p.i].y) < 0.36 * 0.36) p.i++;
     const wp = p.pts[Math.min(p.i, p.pts.length - 1)];
     if (p.i >= p.pts.length - 1) return { x: tx, y: ty };
-    // a stuck unit (pushed back by a crowd or a wall) re-plans sooner
     return wp;
   }
 
@@ -619,54 +614,31 @@ export class Realm extends Battle {
     return e.goalCache;
   }
 
+  /** Troops and soldiers march on the enemy castle; buildings-only troops take the closest building on the way. */
   decideGoal(e) {
-    if (e.team === WILD) return this.wildGoal(e);
-    const p = this.players[e.team];
-    const enemy = 1 - e.team;
-    if (e.role === 'warrior' && p?.stance !== 'charge') {
-      // guard: hunt intruders inside our land, otherwise hold near home
-      const intruder = this.nearestIntruder(e.team, e.x, e.y);
-      if (intruder) return intruder;
-      if (!e.post || this.time > e.postT) {
-        const anchor = this.guardAnchor(e.team, e);
-        const a = Math.random() * Math.PI * 2;
-        e.post = { x: anchor.x + Math.cos(a) * 2.5, y: anchor.y + Math.sin(a) * 2 };
-        e.postT = this.time + 6 + Math.random() * 4;
-        this.landSafely(e.post);
+    if (e.team === WILD) {
+      // Horde monsters go for the nearest building of the village
+      let best = null;
+      let bd = Infinity;
+      for (const s of this.structures) {
+        if (!s.alive || s.team !== 0) continue;
+        const d = dist2(s.x, s.y, e.x, e.y);
+        if (d < bd) {
+          bd = d;
+          best = s;
+        }
       }
-      return e.post;
+      return best || { x: e.x, y: e.y };
     }
-    const target = this.nearestEnemyBuilding(e.team, e.x, e.y);
-    if (target) return target;
-    const ek = this.players[enemy]?.keep;
+    const ek = this.players[1 - e.team]?.keep;
+    if (e.targets === 'buildings') {
+      const b = this.nearestEnemyBuilding(e.team, e.x, e.y);
+      if (b) return b;
+    }
     return ek && ek.alive ? ek : { x: e.x, y: e.y };
   }
 
-  guardAnchor(team, e) {
-    const towers = this.structuresOf(team, 'tower');
-    const k = this.players[team].keep;
-    // spread guards between the keep and the towers that face the enemy
-    const pool = [k, ...towers].filter(Boolean);
-    return pool[(e.id || 0) % pool.length] || { x: this.W / 2, y: this.H / 2 };
-  }
-
-  nearestIntruder(team, x, y) {
-    let best = null;
-    let bd = Infinity;
-    for (const o of this.entities) {
-      if (!o.alive || o.team === team || o.untargetable || o.kind === 'critter' || o.kind === 'pickup' || isBuildingKind(o)) continue;
-      if (o.status?.invisible > 0) continue;
-      if (this.tileOwner(o.x, o.y) !== team) continue;
-      const d = dist2(o.x, o.y, x, y);
-      if (d < bd) {
-        bd = d;
-        best = o;
-      }
-    }
-    return best;
-  }
-
-  /** Closest building of the other village (nests and walls are never a march goal). */
+  /** Closest building of the other side. */
   nearestEnemyBuilding(team, x, y) {
     let best = null;
     let bd = Infinity;
@@ -681,34 +653,6 @@ export class Realm extends Battle {
     return best;
   }
 
-  wildGoal(e) {
-    if (e.raid) {
-      const t = this.nearestEnemyBuilding(WILD, e.x, e.y);
-      const tt = e.raid.team;
-      let best = null;
-      let bd = Infinity;
-      for (const s of this.structures) {
-        if (!s.alive || s.team !== tt || s.isWall) continue;
-        const d = dist2(s.x, s.y, e.x, e.y);
-        if (d < bd) {
-          bd = d;
-          best = s;
-        }
-      }
-      return best || t || { x: e.x, y: e.y };
-    }
-    const nest = e.nest;
-    if (!nest || !nest.alive) return { x: e.x, y: e.y };
-    if (!e.post || this.time > e.postT || dist2(e.x, e.y, nest.x, nest.y) > NEST.leash * NEST.leash) {
-      const a = Math.random() * Math.PI * 2;
-      const r = 1.5 + Math.random() * 2.5;
-      e.post = { x: nest.x + Math.cos(a) * r, y: nest.y + 1 + Math.sin(a) * r };
-      this.landSafely(e.post);
-      e.postT = this.time + 3 + Math.random() * 4;
-    }
-    return e.post;
-  }
-
   canBurn(tx, ty) {
     const t = this.tiles[ty * this.W + tx];
     return !WATER_TILES.has(t) && t !== T.MOUNTAIN && t !== T.CRYSTAL;
@@ -716,19 +660,17 @@ export class Realm extends Battle {
 
   // ───────────────────────── economy ─────────────────────────
 
+  /** Card effects that would give Faith (the Brick Well) give bricks here. */
   addElixir(team, n, x, y) {
-    const p = this.players[team];
-    if (!p) return;
-    p.elixir = Math.min(FAITH_MAX, p.elixir + n);
-    if (x != null) this.floatText(x, y, `+${n}`, '#ffd96a', 1.1);
+    this.addBricks(team, Math.round(n * CARD_BRICKS), x, y);
   }
 
   dropOffs(team) {
-    return this.structures.filter((s) => s.alive && s.team === team && s.built >= 1 && (s.struct === 'keep' || s.struct === 'outpost'));
+    return this.structures.filter((s) => s.alive && s.team === team && s.built >= 1 && s.struct === 'keep');
   }
 
-  workMult(team) {
-    return this.players[team]?.perks.swift ? 1.4 : 1;
+  workMult() {
+    return 1;
   }
 
   // ───────────────────────── events from combat ─────────────────────────
@@ -745,7 +687,7 @@ export class Realm extends Battle {
       scorer.destroyed++;
       scorer.stats.destroyed++;
       scorer.stats.towers++;
-      this.addBricks(enemy, t.struct === 'keep' ? 0 : 30, t.x, t.y - 1.5);
+      if (t.struct !== 'keep') this.addBricks(enemy, 40, t.x, t.y - 1.5);
     }
     if (t.built >= 1) this.emit('crown', { team: enemy, tower: t });
     if (t.struct === 'keep') {
@@ -765,6 +707,7 @@ export class Realm extends Battle {
     if (this.players[enemy]) {
       this.addBricks(enemy, HERO_KILL_BRICKS, h.x, h.y - 1);
       if (src) this.stat(enemy, 'kills', 1);
+      this.heroXp(enemy, 6);
     }
     this.emit('heroDeath', { team: h.team });
   }
@@ -776,39 +719,37 @@ export class Realm extends Battle {
   onKill(e, src) {
     const killer = src?.team;
     if (e.kind === 'villager') {
-      if ((killer === 0 || killer === 1) && killer !== e.team) this.addBricks(killer, 3, e.x, e.y);
+      if ((killer === 0 || killer === 1) && killer !== e.team) this.addBricks(killer, 5, e.x, e.y);
       this.emit('villagerLost', { team: e.team });
     }
-    if (e.struct === 'nest') {
-      this.grid.setFootprint(e.fp.x0, e.fp.y0, e.fp.w, e.fp.h, null, e.id);
-      this.nests = this.nests.filter((n) => n !== e);
-      this.explosion(e.x, e.y - 0.4, 1.6, '#c46a3a');
-      this.spawnPickup('relic', e.x, e.y + 0.2);
-      if (killer === 0 || killer === 1) {
-        this.addBricks(killer, NEST_BRICKS, e.x, e.y - 1);
-        this.players[killer].stats.nests++;
-      }
-      this.emit('nestCleared', { team: killer, nest: e });
-      this.sfx('chest_open', { volume: 0.6 });
-      return;
-    }
+    if (src?.kind === 'hero' && e.team !== src.team) this.heroXp(src.team, isBuildingKind(e) ? 4 : e.kind === 'troop' ? Math.max(1, e.costShare || 1) : 1);
     if (e.struct) {
       this.freeStructure(e);
-      if ((killer === 0 || killer === 1) && killer !== e.team) {
+      if ((killer === 0 || killer === 1) && killer !== e.team && e.built >= 1) {
         const p = this.players[killer];
-        if (e.built >= 1 && !e.isWall) {
-          p.destroyed++;
-          p.stats.destroyed++;
-          this.addBricks(killer, Math.round((STRUCTURES[e.struct]?.cost || 10) * 0.5), e.x, e.y - 1);
-        }
+        p.destroyed++;
+        p.stats.destroyed++;
+        this.addBricks(killer, Math.round((STRUCTURES[e.struct]?.cost || 10) * 0.5), e.x, e.y - 1);
       }
       this.emit('structureLost', { team: e.team, s: e });
       return;
     }
     if (e.kind === 'building' && e.fp) this.grid.setFootprint(e.fp.x0, e.fp.y0, 1, 1, null, e.id);
-    // temples reward kills on holy ground
-    if (e.kind === 'troop' && (killer === 0 || killer === 1) && killer !== e.team && this.tileOwner(e.x, e.y) === killer) {
-      if (this.structuresOf(killer, 'temple').length) this.addElixir(killer, 0.5);
+  }
+
+  /** Heroes level up by fighting: level 2 and 3 make them tougher and unlock a stronger Power. */
+  heroXp(team, n) {
+    const p = this.players[team];
+    if (!p) return;
+    p.heroXp += n;
+    const h = p.hero;
+    if (!h || !h.alive || h.form >= 3) return;
+    if (p.heroXp >= HERO_XP[h.form]) {
+      // upgradeForm charges the arena's brick price; levels are free here
+      const cost = formUpgradeCost(h) || 0;
+      p.bricks += cost;
+      if (upgradeForm(this, h)) this.emit('heroLevel', { team, level: h.form });
+      else p.bricks -= cost;
     }
   }
 
@@ -830,8 +771,9 @@ export class Realm extends Battle {
       }
       if (this.countdown <= 0) {
         this.phase = 'play';
-        this.emit('age', { idx: 0, age: AGES[0] });
-        this.emit('banner', { text: AGES[0].name.toUpperCase(), sub: AGES[0].blurb, kind: 'age' });
+        this.emit('start', {});
+        if (this.horde) this.emit('banner', { text: 'SURVIVE THE NIGHTS!', sub: 'Build by day. Monsters come at night', kind: 'fight' });
+        else this.emit('banner', { text: 'DESTROY THE RED CASTLE!', sub: 'Protect your blue castle', kind: 'fight' });
         this.sfx('fight');
       }
       this.updateFx(dt);
@@ -841,17 +783,11 @@ export class Realm extends Battle {
     this.pathBudget = 10;
     this.tickClock(dt);
     if (this.phase === 'ended') return;
-    if (this.territoryDirty) {
-      this.territoryT -= dt;
-      if (this.territoryT <= 0) this.recomputeTerritory();
-    }
     this.countAll();
     for (let team = 0; team < 2; team++) this.tickPlayer(team, dt);
     this.ai?.forEach((a) => a?.update(dt));
     this.horde?.update(dt);
     this.tutorial?.update(dt);
-    this.tickWild(dt);
-    this.tickShrine(dt);
 
     for (const e of this.entities) {
       if (!e.alive) continue;
@@ -880,9 +816,6 @@ export class Realm extends Battle {
         case 'critter':
           this.updateCritter(e, dt);
           break;
-        case 'pickup':
-          this.updatePickup(e, dt);
-          break;
         default:
           break;
       }
@@ -896,42 +829,25 @@ export class Realm extends Battle {
     if (dead) {
       this.entities = this.entities.filter((e) => e.alive || e.kind === 'hero');
       this.towers = this.towers.filter((t) => t.alive);
-      this.pickups = this.pickups.filter((p) => p.alive);
-    }
-    this.dominionT -= dt;
-    if (this.dominionT <= 0) {
-      this.dominionT = 0.5;
-      this.computeDominion();
     }
     this.updateFx(dt);
   }
 
-  /** One pass over entities and structures for the per-frame counters. */
+  /** One pass over entities for the per-frame counters. */
   countAll() {
     const c = (this.counts ||= [{}, {}]);
     for (const t of c) {
       t.villagers = 0;
-      t.warriors = 0;
-      t.house = 0;
-      t.temple = 0;
-      t.prayed = 0;
+      t.soldiers = 0;
     }
     const homes = (this.barracksPop ||= new Map());
     homes.clear();
     for (const e of this.entities) {
       if (!e.alive || (e.team !== 0 && e.team !== 1)) continue;
       if (e.kind === 'villager') c[e.team].villagers++;
-      else if (e.role === 'warrior') {
-        c[e.team].warriors++;
+      else if (e.role === 'soldier') {
+        c[e.team].soldiers++;
         homes.set(e.home, (homes.get(e.home) || 0) + 1);
-      }
-    }
-    for (const s of this.structures) {
-      if (!s.alive || s.built < 1 || (s.team !== 0 && s.team !== 1)) continue;
-      if (s.struct === 'house') c[s.team].house++;
-      else if (s.struct === 'temple') {
-        c[s.team].temple++;
-        if (s.prayed > this.time - 1.5) c[s.team].prayed++;
       }
     }
   }
@@ -940,162 +856,117 @@ export class Realm extends Battle {
     const p = this.players[team];
     if (!p) return;
     const c = this.counts[team];
-    // population
-    const villagers = c.villagers;
-    p.villagers = villagers;
-    p.warriors = c.warriors;
-    p.pop = villagers + c.warriors;
-    const houses = c.house;
-    p.popCap = KEEP_POP + houses * HOUSE_POP + (p.perks.fertile || 0) * 4;
-    // faith
-    const temples = c.prayed;
-    const shrine = this.shrine?.team === team ? FAITH_SHRINE : 0;
-    let rate = FAITH_BASE + villagers * FAITH_PER_VILLAGER + temples * FAITH_PER_TEMPLE + shrine;
-    if (p.perks.holy) rate *= 1.25;
-    if (this.ageIdx >= 3) rate *= 2;
-    p.faithRate = rate;
-    p.elixir = Math.min(FAITH_MAX, p.elixir + rate * dt);
-    // bricks
-    p.brickT += dt;
-    if (p.brickT >= BRICK_TRICKLE) {
-      p.brickT -= BRICK_TRICKLE;
-      p.bricks += 1;
-      p.stats.bricks += 1;
+    p.villagers = c.villagers;
+    p.soldiers = c.soldiers;
+    p.warriors = c.soldiers;
+    p.pop = c.villagers;
+    p.popCap = p.villagerGoal;
+    // bricks trickle in (twice as fast in the Brick Rush)
+    p.income = BRICK_INCOME * (this.rush ? 2 : 1);
+    p.brickT += p.income * dt;
+    if (p.brickT >= 1) {
+      const n = Math.floor(p.brickT);
+      p.brickT -= n;
+      p.bricks += n;
+      p.stats.bricks += n;
     }
-    // the Truce of Dawn shields keeps; afterwards they slowly mend when left alone
+    // lost villagers are replaced at the castle
     const keep = p.keep;
-    if (keep?.alive) {
-      if (this.ageIdx === 0) keep.status.invuln = 0.5;
-      else if (!keep.lastHitT || this.time - keep.lastHitT > 6) keep.hp = Math.min(keep.maxHp, keep.hp + keep.maxHp * 0.005 * dt);
-    }
-    // villagers from the keep
-    if (keep?.alive && p.pop < p.popCap) {
+    if (keep?.alive && p.villagers < p.villagerGoal) {
       p.villagerT -= dt;
       if (p.villagerT <= 0) {
-        // bigger villages grow faster
-        p.villagerT = VILLAGER_EVERY / (1 + houses * 0.15);
+        p.villagerT = VILLAGER_RESPAWN;
         const v = this.spawnVillager(team, keep.x + (Math.random() - 0.5) * 1.5, keep.y + (team === 0 ? -1.9 : 1.9));
         this.sparkle(v.x, v.y - 0.4, 0.5, '#ffe9a8', 6);
         if (team === 0) this.sfx('villager', { volume: 0.5 });
-        this.emit('villagerBorn', { team, v });
       }
-    } else p.villagerT = Math.max(p.villagerT, 1.5);
-    // alert the owner when a building is under attack (once every 12 s per building)
+    } else p.villagerT = VILLAGER_RESPAWN;
+    // alert the owner when a building is under attack (once every 10 s per building)
     p.alertT = (p.alertT || 0) - dt;
     if (p.alertT <= 0) {
       p.alertT = 0.5;
       for (const s of this.structures) {
         if (!s.alive || s.team !== team || !s.lastHitT || this.time - s.lastHitT > 0.6) continue;
-        if (s.alertedT && this.time - s.alertedT < 12) continue;
+        if (s.alertedT && this.time - s.alertedT < 10) continue;
         s.alertedT = this.time;
         this.emit('underAttack', { team, s });
         break;
       }
     }
-    // jobs
     p.jobT -= dt;
     if (p.jobT <= 0) {
       p.jobT = 1;
       assignJobs(this, team);
     }
-    // hero respawn
+    // the hero levels slowly over time too, and heals beside its own castle
+    const h = p.hero;
+    if (h?.alive) {
+      this.heroXp(team, HERO_XP_PER_SEC * dt);
+      if (keep?.alive && dist2(h.x, h.y, keep.x, keep.y) < 4.5 * 4.5 && (!h.lastHitT || this.time - h.lastHitT > 2) && h.hp < h.maxHp) {
+        h.hp = Math.min(h.maxHp, h.hp + h.maxHp * HOME_HEAL * dt);
+        h.healing = true;
+      } else h.healing = false;
+      // the gadget fires by itself when the hero is hurt in a fight
+      if (gadgetReady(h) && h.hp < h.maxHp * 0.5 && h.lastHitT && this.time - h.lastHitT < 0.5) this.autoGadget(h);
+    }
     if (p.hero && !p.hero.alive) {
       p.heroRespawnT -= dt;
       if (p.heroRespawnT <= 0 && this.kingAlive(team)) this.respawnHero(team);
     }
   }
 
+  autoGadget(h) {
+    const keep = this.players[h.team].keep;
+    const jet = h.gadget === 'jetpack' && keep;
+    const prev = h.moveTo;
+    // the jetpack hops toward home
+    if (jet) h.moveTo = { x: keep.x, y: keep.y + (h.team === 0 ? -2.5 : 2.5) };
+    useGadget(this, h);
+    if (jet) h.moveTo = prev;
+  }
+
   respawnHero(team) {
     super.respawnHero(team);
     const h = this.players[team].hero;
     const k = this.players[team].keep;
+    this.setupHero(h);
     if (h && k) {
       h.x = k.x;
-      h.y = k.y + (team === 0 ? 2.2 : -2.2);
+      h.y = k.y + (team === 0 ? -2.4 : 2.4);
       this.landSafely(h);
     }
-    if (this.players[team]?.perks.might) h.dmgBoost = 1.2;
   }
 
   updateStructure(s, dt) {
     s.age += dt;
-    if (s.struct === 'nest') {
-      this.updateNest(s, dt);
-      return;
-    }
     if (s.built < 1 || s.team < 0) return;
     if (s.struct === 'barracks') {
       const p = this.players[s.team];
       if (!p) return;
       const mine = this.barracksPop.get(s.id) || 0;
-      if (mine >= BARRACKS_MAX || p.pop >= p.popCap) {
+      if (mine >= BARRACKS_MAX) {
         s.anim = 'idle';
         return;
       }
-      s.trainT -= dt * (this.ageIdx >= 2 ? 2 : 1) * this.workMult(s.team);
+      s.trainT -= dt * (this.rush ? 1.5 : 1);
       s.anim = 'train';
       if (s.trainT <= 0) {
         s.trainT = BARRACKS_EVERY;
-        const u = this.spawnUnit(s.team, 'warrior', s.x + (Math.random() - 0.5), s.y + (s.team === 0 ? -1.4 : 1.4), p.kingLevel, { deployT: 0.3 });
+        const u = this.spawnUnit(s.team, 'soldier', s.x + (Math.random() - 0.5), s.y + (s.team === 0 ? -1.4 : 1.4), p.kingLevel, { deployT: 0.3 });
         if (u) {
-          u.role = 'warrior';
+          u.role = 'soldier';
           u.home = s.id;
           p.stats.warriors++;
           this.puff(u.x, u.y, '#e8e2d0', 6);
-          this.sfx('deploy', { volume: 0.4, pitch: 1.2 });
+          if (s.team === 0) this.sfx('deploy', { volume: 0.4, pitch: 1.2 });
         }
       }
-    }
-  }
-
-  updateNest(n, dt) {
-    n.guards = n.guards.filter((g) => g.alive);
-    n.spawnT -= dt;
-    const want = NEST.keep + (this.ageIdx >= 2 ? 1 : 0);
-    if (n.spawnT <= 0 && n.guards.length < want) {
-      n.spawnT = NEST.every * (this.ageIdx >= 3 ? 0.6 : 1);
-      const u = this.spawnMonster(n.nestKind, n.x + (Math.random() - 0.5) * 1.5, n.y + 1.1);
-      if (u) {
-        u.nest = n;
-        n.guards.push(u);
-      }
-    }
-  }
-
-  /** Each nest sends a raid at the closest village when night falls. */
-  launchRaids() {
-    const size = this.horde ? Math.min(4, 1 + Math.floor(this.horde.night / 3)) : [0, 2, 3, 4][this.ageIdx] || 4;
-    for (const n of this.nests) {
-      if (!n.alive) continue;
-      let team = -1;
-      let bd = Infinity;
-      for (let t = 0; t < 2; t++) {
-        const k = this.players[t]?.keep;
-        if (!k?.alive) continue;
-        const d = dist2(k.x, k.y, n.x, n.y);
-        if (d < bd) {
-          bd = d;
-          team = t;
-        }
-      }
-      if (team < 0) continue;
-      for (let i = 0; i < size; i++) {
-        const kind = this.ageIdx >= 3 && i % 2 ? 'skeleton' : n.nestKind;
-        const u = this.spawnMonster(kind, n.x + (Math.random() - 0.5) * 2, n.y + 1.2);
-        if (u) u.raid = { team };
-      }
-      this.puff(n.x, n.y, '#5b5068', 10);
-    }
-    if (this.nests.some((n) => n.alive)) {
-      this.sfx('wolf_howl', { volume: 0.6 });
-      this.emit('raid', {});
     }
   }
 
   updateCritter(c, dt) {
     c.age += dt;
     c.wanderT -= dt;
-    // flee from fire and fights
     const ti = Math.floor(c.y) * this.W + Math.floor(c.x);
     if (this.fireGrid[ti] > 0 && !c.flee) c.flee = { x: c.x + (Math.random() - 0.5) * 6, y: c.y + (Math.random() - 0.5) * 6 };
     if (c.wanderT <= 0) {
@@ -1122,182 +993,9 @@ export class Realm extends Battle {
     }
   }
 
-  updatePickup(p, dt) {
-    p.age += dt;
-    for (let team = 0; team < 2; team++) {
-      const h = this.players[team]?.hero;
-      if (!h || !h.alive) continue;
-      if (dist2(h.x, h.y, p.x, p.y) > 0.9 * 0.9) continue;
-      p.alive = false;
-      this.collect(team, p);
-      return;
-    }
-    if (p.life != null) {
-      p.life -= dt;
-      if (p.life <= 0) p.alive = false;
-    }
-  }
-
-  collect(team, p) {
-    const pl = this.players[team];
-    if (p.type === 'relic') {
-      const owned = new Set(pl.relics);
-      const pool = RELICS.filter((r) => !owned.has(r.id) || r.id === 'rain' || r.id === 'fertile' || r.id === 'gold');
-      const r = pool[Math.floor(this.rng.next() * pool.length)];
-      this.grantRelic(team, r.id);
-      this.sparkle(p.x, p.y - 0.4, 1.4, '#ff4a3a', 24);
-      this.flashRing(p.x, p.y, 1.6, '#ff6a5a');
-      this.sfx('relic');
-      this.emit('relic', { team, relic: r });
-    } else if (p.type === 'brick') {
-      this.addBricks(team, p.amount || 10, p.x, p.y - 0.4);
-      this.sfx('brick_collect', { volume: 0.6 });
-    } else if (p.type === 'faith') {
-      this.addElixir(team, p.amount || 1, p.x, p.y - 0.4);
-      this.sfx('faith', { volume: 0.6 });
-    } else if (p.type === 'heart') {
-      const h = pl.hero;
-      if (h) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.35);
-      this.sfx('heal', { volume: 0.5 });
-    }
-  }
-
-  grantRelic(team, id) {
-    const p = this.players[team];
-    p.relics.push(id);
-    p.stats.relics++;
-    if (id === 'rain') this.addBricks(team, 120);
-    else if (id === 'fertile') p.perks.fertile = (p.perks.fertile || 0) + 1;
-    else if (id === 'gold') p.perks.gold = (p.perks.gold || 0) + 1;
-    else p.perks[id] = true;
-    if (id === 'might' && p.hero) p.hero.dmgBoost = 1.2;
-    if (id === 'walls') {
-      for (const s of this.structuresOf(team, null, false)) {
-        s.maxHp *= 1.25;
-        s.hp *= 1.25;
-      }
-    }
-  }
-
-  tickShrine(dt) {
-    const s = this.shrine;
-    if (!s) return;
-    const near = [0, 0];
-    for (const e of this.entities) {
-      if (!e.alive || (e.team !== 0 && e.team !== 1)) continue;
-      if (e.kind !== 'troop' && e.kind !== 'hero') continue;
-      if (dist2(e.x, e.y, s.x, s.y) <= 3 * 3) near[e.team]++;
-    }
-    const contested = near[0] > 0 && near[1] > 0;
-    const who = near[0] > 0 ? 0 : near[1] > 0 ? 1 : -1;
-    if (contested || who < 0 || who === s.team) {
-      if (!contested) s.capProg = Math.max(0, s.capProg - dt * 0.2);
-      return;
-    }
-    if (s.capTeam !== who) {
-      s.capTeam = who;
-      s.capProg = 0;
-    }
-    s.capProg += dt / 5;
-    if (s.capProg >= 1) {
-      const prev = s.team;
-      s.team = who;
-      s.capProg = 0;
-      s.capTeam = -1;
-      this.territoryDirty = true;
-      this.grid.setFootprint(s.fp.x0, s.fp.y0, s.fp.w, s.fp.h, who, s.id);
-      this.flashRing(s.x, s.y, 3, who === 0 ? '#7fb8ff' : '#ff8a7f');
-      this.sparkle(s.x, s.y - 1, 1.6, '#ffe9a8', 24);
-      this.sfx('shrine');
-      this.players[who].stats.shrine++;
-      this.emit('shrine', { team: who, prev });
-    }
-  }
-
-  // ───────────────────────── wild world ─────────────────────────
-
-  tickWild(dt) {
-    // Chaos disasters
-    if (this.ageIdx >= 3) {
-      this.disasterT -= dt;
-      if (this.disasterT <= 0) {
-        this.disasterT = 11 + this.rng.next() * 7;
-        this.disaster();
-      }
-    }
-  }
-
-  /** A random disaster near the contested middle or a village. */
-  disaster() {
-    const kinds = ['meteor', 'storm', 'quake'];
-    const kind = kinds[Math.floor(this.rng.next() * kinds.length)];
-    let x = 0;
-    let y = 0;
-    for (let tries = 0; tries < 30; tries++) {
-      x = 3 + this.rng.next() * (this.W - 6);
-      y = 8 + this.rng.next() * (this.H - 16);
-      if (!this.blockedAt(Math.floor(x), Math.floor(y))) break;
-    }
-    this.emit('disaster', { kind, x, y });
-    this.sfx('disaster', { volume: 0.8 });
-    if (kind === 'meteor') {
-      this.warnings.push({ x, y, r: 2.2, t: 1.4, max: 1.4 });
-      this.pending.push({ t: 1.4, fn: () => this.meteorStrike(x, y) });
-    } else if (kind === 'storm') {
-      for (let i = 0; i < 6; i++) {
-        const lx = x + (this.rng.next() - 0.5) * 6;
-        const ly = y + (this.rng.next() - 0.5) * 6;
-        this.warnings.push({ x: lx, y: ly, r: 1.2, t: 0.3 + i * 0.35, max: 0.3 + i * 0.35 });
-        this.pending.push({ t: 0.3 + i * 0.35, fn: () => this.lightningStrike(lx, ly) });
-      }
-    } else {
-      this.shake(1);
-      this.sfx('earthquake');
-      for (let i = 0; i < 3; i++) {
-        const a = this.rng.next() * Math.PI * 2;
-        this.crack(x, y, x + Math.cos(a) * 4, y + Math.sin(a) * 4);
-      }
-      for (const e of this.entities) {
-        if (!e.alive || e.flying || e.untargetable) continue;
-        if (dist2(e.x, e.y, x, y) <= 4.5 * 4.5) damage(this, e, isBuildingKind(e) ? 160 : 70, { effects: { stun: 0.8 } });
-      }
-    }
-  }
-
-  meteorStrike(x, y) {
-    this.explosion(x, y, 2.2, '#ff7a2e');
-    this.shake(0.9);
-    this.sfx('meteor');
-    this.decal(x, y, 1.8);
-    this.igniteGround(x, y, 2, 5, 40, -1);
-    for (const e of this.entities) {
-      if (!e.alive || e.untargetable) continue;
-      if (dist2(e.x, e.y, x, y) <= 2.2 * 2.2) damage(this, e, isBuildingKind(e) ? 320 : 260, { effects: { burn: { dps: 20, dur: 3 } } });
-    }
-  }
-
-  lightningStrike(x, y) {
-    this.bolt(x + 0.3, y - 7, x, y, '#fff7a8', 3);
-    this.flashRing(x, y, 1.2, '#fff7a8');
-    this.sfx('lightning', { volume: 0.6 });
-    this.igniteGround(x, y, 0.8, 3, 20, -1);
-    for (const e of this.entities) {
-      if (!e.alive || e.untargetable) continue;
-      if (dist2(e.x, e.y, x, y) <= 1.3 * 1.3) damage(this, e, 140, { effects: { stun: 0.5 } });
-    }
-  }
-
   /** Fire spreads through forest; burnt forest turns to ash, ash regrows to grass and grass back to forest. */
   tickGround(dt) {
     super.tickGround(dt);
-    for (const w of this.warnings) w.t -= dt;
-    if (this.warnings.length) this.warnings = this.warnings.filter((w) => w.t > 0);
-    if (this.pending.length) {
-      for (const p of this.pending) p.t -= dt;
-      const due = this.pending.filter((p) => p.t <= 0);
-      this.pending = this.pending.filter((p) => p.t > 0);
-      for (const p of due) p.fn();
-    }
     this.groundSpreadT = (this.groundSpreadT || 0) - dt;
     if (this.groundSpreadT > 0) return;
     this.groundSpreadT = 0.5;
@@ -1306,8 +1004,7 @@ export class Realm extends Battle {
     const tiles = this.tiles;
     for (let i = 0; i < g.length; i++) {
       if (g[i] > 0) {
-        if (tiles[i] === T.FOREST || tiles[i] === T.GRASS && this.origForest[i]) {
-          // spread to forest neighbours
+        if (tiles[i] === T.FOREST) {
           const x = i % W;
           const y = (i / W) | 0;
           for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -1315,18 +1012,18 @@ export class Realm extends Battle {
             const ny = y + dy;
             if (nx < 0 || ny < 0 || nx >= W || ny >= this.H) continue;
             const ni = ny * W + nx;
-            if (tiles[ni] === T.FOREST && g[ni] <= 0 && this.rng.next() < 0.22) {
+            if (tiles[ni] === T.FOREST && g[ni] <= 0 && this.rng.next() < 0.18) {
               g[ni] = 4 + this.rng.next() * 3;
               this.fireDps[ni] = 18;
               this.fireTeam[ni] = -1;
             }
           }
-          if (tiles[i] === T.FOREST && g[i] < 1.2) this.setTile(i, T.ASH, 35 + this.rng.next() * 25);
+          if (g[i] < 1.2) this.setTile(i, T.ASH, 30 + this.rng.next() * 20);
         }
       } else if (this.regrowT[i] > 0) {
         this.regrowT[i] -= 0.5;
         if (this.regrowT[i] <= 0) {
-          if (tiles[i] === T.ASH) this.setTile(i, T.GRASS, this.origForest[i] ? 50 + this.rng.next() * 40 : 0);
+          if (tiles[i] === T.ASH) this.setTile(i, T.GRASS, this.origForest[i] ? 40 + this.rng.next() * 30 : 0);
           else if (tiles[i] === T.GRASS && this.origForest[i] && this.grid.occ[i] === 0) this.setTile(i, T.FOREST, 0);
         }
       }
@@ -1341,106 +1038,76 @@ export class Realm extends Battle {
     this.tileChanges.push(i);
   }
 
-  // ───────────────────────── territory & score ─────────────────────────
-
-  recomputeTerritory() {
-    const claims = [];
-    for (const s of this.structures) {
-      if (!s.alive || s.built < 1 || !s.claim || (s.team !== 0 && s.team !== 1)) continue;
-      claims.push({ x: s.x, y: s.y, claim: s.claim, team: s.team });
-    }
-    this.owner = computeTerritory(this.W, this.H, claims, this.tiles, WATER_TILES);
-    this.territoryDirty = false;
-    this.territoryT = 0.4;
-    this.territoryVersion++;
-  }
-
-  computeDominion() {
-    const tilesOwned = [0, 0];
-    for (let i = 0; i < this.owner.length; i++) {
-      const o = this.owner[i];
-      if (o === 0 || o === 1) tilesOwned[o]++;
-    }
-    for (let team = 0; team < 2; team++) {
-      const p = this.players[team];
-      if (!p) continue;
-      const buildings = this.structures.filter((s) => s.alive && s.team === team && s.built >= 1 && !s.isWall).length;
-      this.dominion[team] = Math.round(tilesOwned[team] * DOMINION.tile + buildings * DOMINION.building + p.pop * DOMINION.pop + (this.shrine?.team === team ? DOMINION.shrine : 0));
-      p.dominion = this.dominion[team];
-    }
-  }
-
-  // ───────────────────────── clock, ages, day/night ─────────────────────────
+  // ───────────────────────── clock ─────────────────────────
 
   get elapsed() {
     return this.matchLength - this.clock;
   }
 
-  tickClock(dt) {
-    this.clock -= dt;
-    const el = this.elapsed;
-    const idx = ageIndexAt(el);
-    if (idx !== this.ageIdx) {
-      this.ageIdx = idx;
-      const age = AGES[idx];
-      this.emit('age', { idx, age });
-      this.emit('banner', { text: age.name.toUpperCase(), sub: age.blurb, kind: 'age' });
-      this.sfx('age_up');
-      if (idx === 3) this.audio?.setIntensity?.(1);
-      else if (idx === 2) this.audio?.setIntensity?.(0.5);
-    }
-    // day / night from the Age of Bricks on (Horde Nights runs its own schedule)
-    let night = false;
-    if (this.horde) night = this.horde.isNight(el);
-    else if (el >= AGES[1].at) {
-      const c = (el - AGES[1].at) % DAY_LENGTH;
-      night = c >= DAY_LENGTH - NIGHT_LENGTH;
-    }
-    if (night !== this.night) {
-      this.night = night;
-      this.sfx(night ? 'night' : 'dawn', { volume: 0.7 });
-      if (night) {
-        this.horde?.onNight();
-        this.launchRaids();
-      } else this.horde?.onDay();
-      this.emit(night ? 'night' : 'day', {});
-    }
-    this.nightK += ((night ? 1 : 0) - this.nightK) * Math.min(1, dt * 0.8);
-    if (this.clock <= 0 && !this.horde) this.finishByDominion();
+  /** Castle health as a fraction (for the HUD and the time-up rule). */
+  castleHealth(team) {
+    const k = this.players[team]?.keep;
+    return k && k.alive ? k.hp / k.maxHp : 0;
   }
 
-  finishByDominion() {
-    this.computeDominion();
-    const [a, b] = this.dominion;
+  tickClock(dt) {
+    this.clock -= dt;
+    if (this.horde) {
+      // Horde Nights runs its own day and night
+      const night = this.horde.isNight(this.elapsed);
+      if (night !== this.night) {
+        this.night = night;
+        this.sfx(night ? 'night' : 'dawn', { volume: 0.7 });
+        if (night) this.horde.onNight();
+        else this.horde.onDay();
+        this.emit(night ? 'night' : 'day', {});
+      }
+      this.nightK += ((night ? 1 : 0) - this.nightK) * Math.min(1, dt * 0.8);
+      return;
+    }
+    // the sun sets as time runs out; the last minute is the Brick Rush
+    const left = this.clock;
+    const target = left > RUSH_AT + 30 ? 0 : left > RUSH_AT ? (RUSH_AT + 30 - left) / 30 * 0.45 : 0.45 + (1 - left / RUSH_AT) * 0.3;
+    this.nightK += (target - this.nightK) * Math.min(1, dt * 0.6);
+    if (!this.rush && left <= RUSH_AT) {
+      this.rush = true;
+      this.emit('banner', { text: 'BRICK RUSH!', sub: 'Double bricks for the last minute', kind: 'elixir' });
+      this.sfx('age_up');
+      this.audio?.setIntensity?.(1);
+    }
+    if (left <= 0) this.finishOnTime();
+  }
+
+  /** Time is up: the castle with more health wins. */
+  finishOnTime() {
+    const a = this.castleHealth(0);
+    const b = this.castleHealth(1);
     if (!this.players[1]) {
       this.finish(0, 'survived');
       return;
     }
-    if (a === b) this.finish(-1, 'draw');
-    else this.finish(a > b ? 0 : 1, 'dominion');
+    if (Math.abs(a - b) < 0.005) this.finish(-1, 'draw');
+    else this.finish(a > b ? 0 : 1, 'time');
   }
 
   finish(winner, reason) {
     if (this.phase === 'ended') return;
-    this.computeDominion();
-    // crowns: keep kill 3; a dominion win 1 (+1 for 3+ buildings destroyed); anyone else 1 for 3+ buildings destroyed
+    // crowns: castle destroyed 3; a win on time 1 (+1 if their castle is below half health)
     const crowns = [0, 0];
     for (let team = 0; team < 2; team++) {
       const p = this.players[team];
       if (!p) continue;
-      const wrecker = p.destroyed >= 3 ? 1 : 0;
-      if (winner === team) crowns[team] = reason === 'keep' ? 3 : 1 + wrecker;
-      else crowns[team] = wrecker;
+      if (winner === team) crowns[team] = reason === 'keep' ? 3 : 1 + (this.castleHealth(1 - team) < 0.5 ? 1 : 0);
       p.crowns = crowns[team];
     }
     this.phase = 'ended';
-    this.result = { winner, reason, crowns, dominion: this.dominion.slice(), age: this.ageIdx, time: this.elapsed, wave: this.horde?.night || 0 };
+    this.result = { winner, reason, crowns, health: [this.castleHealth(0), this.castleHealth(1)], time: this.elapsed, wave: this.horde?.night || 0 };
     this.audio?.setIntensity?.(0);
     this.emit('end', this.result);
   }
 
   summary(team = 0) {
     const p = this.players[team];
-    return { ...p.stats, crowns: p.crowns, dominion: this.dominion[team], relics: p.relics.slice(), goldBonus: (p.perks.gold || 0) * 0.5 };
+    return { ...p.stats, crowns: p.crowns, relics: [], goldBonus: 0 };
   }
 }

@@ -1,16 +1,17 @@
 # Brickbox: Tiny Gods — Architecture & Module Contracts
 
-Brickbox: Tiny Gods is an original 2D pixel-art game. You are a tiny god with a champion on a living island, and each
-source genre supplies one equal pillar. The game design is in [`DESIGN.md`](DESIGN.md).
+Brickbox: Tiny Gods is an original pixel-art game (a 3D brick world with pixel sprites, or classic 2D). The goal of
+the main mode is one line: knock down the red castle before they knock down yours. The game design is in
+[`DESIGN.md`](DESIGN.md).
 
-- **FIGHT** (pixel shooter): a joystick-steered hero with an armory of weapons and effects, gadgets, pets, 3 forms
-  and a skin editor.
-- **BUILD** (brick RTS): villagers mine brick deposits and construct the Houses, Barracks, Watchtowers, Temples,
-  Outposts and Walls you place.
-- **RULE** (god sandbox): an autonomous tribe, territory borders, wildlife and monster nests, fire that spreads and
-  regrows, day and night, four Ages ending in Chaos. The full "God Box" sandbox is a separate mode.
-- **CARDS** (card battler meta): Divine Cards cast with Faith, card levels, Lucky Drops, Realms unlocked by
-  trophies, the Trophy Road, quests and the shop. The original lane battle survives as the side mode "Arena Duel".
+- **Hero** (pixel shooter): a joystick-steered hero with an armory of weapons, one Power button, an automatic gadget,
+  a pet, 3 levels and a skin editor.
+- **Village** (brick RTS): villagers mine bricks and construct the House, Tower and Barracks you place.
+- **Living island** (god sandbox): fire that spreads and regrows, critters, the sun setting as the clock runs down.
+  The full "God Box" sandbox is a separate mode.
+- **Cards** (card battler meta): cards paid for with bricks, card levels, Lucky Drops, Realms unlocked by trophies,
+  the Trophy Road, quests and the shop. The original lane battle code (`src/battle/battle.js`) is the shared
+  engine the realm extends.
 
 No trademarked names, characters or art from other games are used. Everything is original.
 
@@ -40,7 +41,7 @@ src/core/                  storage.js, rng.js, util.js, input.js, loop.js, audio
 src/data/                  cards.js, heroes.js, weapons.js, gadgets.js, pets.js, arenas.js, progression.js, quests.js, emotes.js
 src/art/                   palette.js, sprites.js, sprite-cache.js, tiles.js, realm-tiles.js, icons.js (art agent)
 src/battle/                shared combat engine (damage, effects, projectiles, spells, troops, hero) + the Arena Duel lane mode
-src/realm/                 Tiny Gods: realm.js (Realm extends Battle), worldgen, grid (A*, territory), village (villagers),
+src/realm/                 Realm Clash: realm.js (Realm extends Battle), worldgen, grid (A*), village (villagers),
                            realm-ai (rival god), horde (Horde Nights), realm-tutorial, realm-render (2D view), minimap
 src/realm3d/               render3d.js (the 3D brick-world view) + models.js (procedural LEGO-style models, 3D art agent)
 src/vendor/three.js        relative re-export of three.js
@@ -156,19 +157,26 @@ Music themes: menu, meadow, desert, frost, swamp, crystal, lava, candy, void, go
 
 ## Realm contract (src/realm/*)
 
-- `Realm` extends `Battle`. It overrides `initWorld()` (island, grid, deposits) and `setupSides()` (keeps,
-  villagers, heroes, shrine, nests, critters), and supplies the map hooks the shared unit code calls:
+- `Realm` extends `Battle`. It overrides `initWorld()` (island, grid, deposits) and `setupSides()` (castles,
+  villagers, heroes, critters), and supplies the map hooks the shared unit code calls:
   `routeTo(e, x, y)` (cached A*), `constrain(e)`, `landSafely(e)`, `unitGoal(e)` (march goals), `speedAt(x, y)`,
-  `canBurn(tx, ty)` and `onKill(e, src)`. `B.W`/`B.H` give the map size: 18×32 for the lane arena, 40×64 for a realm.
-- Faith is stored in `player.elixir`, so the shared card code (hand, queue, costs, `playCard`) works unchanged.
-- Entity kinds: `tower` (Keep = type `king`, Watchtower = type `princess`), `building` (structures with `struct`,
-  card buildings, nests and the shrine), `troop` (summons, warriors with `role: 'warrior'`, monsters on team 2),
-  `hero`, `pet`, `villager`, `critter` (ambient, untargetable) and `pickup` (Red Bricks and orbs, picked up by heroes).
-- Structures carry `fp` (a footprint in tiles), `built` (0..1) and `claim`. `Grid.occ` marks footprints, so A*
-  routes around buildings. Enemy walls stay passable at a cost, and units then smash them.
-- Territory: `computeTerritory()` gives tile ownership from building claims. `R.owner` is an Int8Array (-1, 0, 1).
-- Events emitted for the HUD: `age`, `night`, `day`, `banner`, `built`, `order`, `structureLost`, `nestCleared`,
-  `relic`, `shrine`, `raid`, `disaster`, `stance`, `crown`, `heroDeath`, `villagerBorn`, `coach`, `end`.
+  `canBurn(tx, ty)`, `onKill(e, src)` and `spellMult(e)` (spells hit troops 0.7× and buildings 0.6×).
+  `B.W`/`B.H` give the map size: 18×32 for the lane arena, 30×46 for a realm.
+- All rules and tuning live in `src/realm/constants.js`: match length, Brick Rush, brick income, buildings, troop
+  multipliers, hero XP. Bricks are the only resource (`player.bricks`); a card costs `cardBricks(card)` =
+  cost × 10. `player.elixir` is unused in the realm.
+- Territory is fixed: `R.owner` (Int8Array) is team 1 above the river and team 0 below it. Worldgen always makes the
+  river with three bridges (`map.bridges`); buildings may not block a bridge.
+- Entity kinds: `tower` (castle = type `king`, Tower = type `princess`), `building` (structures with `struct` and
+  card buildings), `troop` (summons, barracks soldiers, monsters on team 2), `hero`, `pet`, `villager` and `critter`
+  (ambient, untargetable).
+- Structures carry `fp` (a footprint in tiles) and `built` (0..1). `Grid.occ` marks footprints, so A* routes around
+  buildings.
+- Player actions: `playCard`, `previewPlacement`, `orderBuild`, `placementProblem`, `heroJoy`, `heroMove`,
+  `heroFocus`, `heroPower` (the one Power button), `emote`, `pause`, `finish`. `castleHealth(team)` is 0..1.
+- Events emitted for the HUD: `countdown`, `start`, `banner`, `built`, `order`, `structureLost`, `underAttack`,
+  `heroLevel`, `heroDeath`, `crown`, `night`/`day` (Horde Nights), `coach`, `end` (`{ winner, reason, crowns,
+  health }`, reason is `keep`, `time`, `draw` or `surrender`).
 - `realm-tiles.js` renders the terrain (`renderRealmMap`, `renderRealmTile`, `drawRealmWater`, `drawTerritory`,
   `realmTileColor`). Tile ids `REALM_TILES` must equal `T` in `src/realm/constants.js`.
 

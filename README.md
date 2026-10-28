@@ -1,64 +1,48 @@
 # Brickbox: Tiny Gods
 
-An original pixel-art game for phones. You are a tiny god with a champion on a small living island, shown as a 3D
-world of toy bricks with pixel-sprite heroes and creatures. You can switch back to classic 2D in the settings.
+An original pixel-art game for phones. Knock down the red castle before they knock down yours. The island is shown
+as a 3D world of toy bricks with pixel-sprite heroes and creatures; you can switch to classic 2D in the settings.
 
-- **Fight** as your hero.
-- **Build** a village brick by brick.
-- **Rule** a tribe that runs itself.
-- **Cast** Divine Cards from your deck.
+- **Move** your hero with a joystick. It fights on its own; POWER fires its special attack.
+- **Mine** bricks with your villagers. Bricks pay for everything.
+- **Send** troops by dragging cards onto your side of the river. They march on the enemy castle.
+- **Build** a House, Tower or Barracks.
 
-A rival god lives on the other side of the island, and only one village can rule it. Everything (art, sound and
-code) is original. It runs as plain JavaScript with Canvas and WebGL. The only library is three.js (MIT), which is
-bundled into the game. You can play it in the
-browser, as an iPhone home-screen app, or as a native iOS app.
+Everything (art, sound and code) is original. It runs as plain JavaScript with Canvas and WebGL. The only library is
+three.js (MIT), which is bundled into the game. You can play it in the browser, as an iPhone home-screen app, or as
+a native iOS app.
 
 The full design is in [`docs/DESIGN.md`](docs/DESIGN.md).
 
 ## Features
 
-**Realm Clash (main mode, 8 minutes).** Every match takes place on a freshly generated island that is
-point-symmetric, so both sides get a fair start. It has forests, hills, rivers with fords, brick deposits, monster
-nests and a Shrine in the middle.
-- **Win** by toppling the rival Keep, or by having the higher **Dominion** (land + buildings + population + Shrine)
-  when the Age of Chaos ends.
-- **Four Ages** change the rules:
-  - Dawn: peaceful build-up.
-  - Bricks: richer deposits, and night raids begin.
-  - War: barracks train twice as fast.
-  - Chaos: Faith ×2, plus meteors, lightning storms and earthquakes.
+**Realm Clash (main mode, 5 minutes).**
+- **Goal:** destroy the enemy castle to win at once. If time runs out, the castle with more health wins. Both
+  castles' health is always on screen, and an arrow points to the enemy castle.
+- **The island** is freshly generated every match and point-symmetric, so both sides get a fair start. A river
+  splits it in two, with three bridges. Your side is everything below the river.
+- **Brick Rush:** the last minute gives double bricks, for a big final push.
 
-**Fight.**
-- Steer your hero with a floating joystick (or WASD). It auto-fires its weapon at enemies in range.
-- Use 2 elemental spells, a gadget and a pet.
-- Spend bricks to transform through 3 forms (Apprentice → Ninja → Elemental Master).
-- Fallen heroes respawn at the Keep.
+**Hero.**
+- Steer with a floating joystick (or WASD). Your hero attacks enemies in range by itself; tap an enemy to focus it.
+- One POWER button. The hero levels up by fighting: level 2 is tougher, level 3 upgrades POWER.
+- Heals beside your castle and respawns there after 5 seconds.
 
-**Build.**
-- Place blueprints inside your borders: House (+population), Barracks (trains Warriors), Watchtower (can take a
-  fire, ice, lightning or earth element), Temple (+Faith), Outpost (claims land far out and stores bricks) and Walls.
-- Villagers build them, mine deposits, haul bricks home and repair damage.
-- Buildings stand on little team-coloured brick baseplates.
+**Village.**
+- Bricks are the only resource. Villagers mine brick piles and carry them home; a few more trickle in every second.
+- Three buildings: House (+2 villagers), Tower (shoots enemies) and Barracks (sends Soldiers to attack).
+- Buildings stand on little team-coloured brick baseplates. Forests burn and regrow, and the sun sets as the clock
+  runs down.
 
-**Rule.**
-- Your tribe grows on its own and takes jobs (miner, builder, priest). Villagers flee from danger.
-- Territory borders spread from your buildings.
-- Wolves and bandits guard nests, and the nests raid the closest village at night.
-- Forest fires spread, burnt land turns to ash, and ash regrows into grass and then forest.
-- Clear a nest to find a **Red Brick**, a random power for the match: Swift Hands, Holy Spark, Brick Rain, Hero's
-  Might, Thick Walls, Battle Hymn, Fertile Lands or Gold Rush.
-- Capture the Shrine for Faith and Dominion.
-- Blow the **war horn** to switch your Warriors between Guard and Charge.
-
-**Cast.**
-- An 8-card deck and a 4-card hand of **42 Divine Cards**, cast with Faith from your worshippers.
-- Summons drop inside your borders or next to your hero, who acts as a walking beacon.
-- Spells strike anywhere: Meteor (burning ground), Earthquake, Blessing, Lightning, Acid Rain, Blizzard, a Plague
-  that spreads, Black Hole and a Tiny Nuke.
+**Cards.**
+- An 8-card deck and a 4-card hand of **42 cards**, paid for with bricks (card cost × 10).
+- Troops are sturdy, medium-strength units that march on the enemy castle and hit buildings hard. Swarm cards bring
+  a few tough units instead of many fragile ones.
+- Spells strike anywhere but soften troops rather than wiping them out: Meteor, Earthquake, Blessing, Lightning,
+  Acid Rain, Blizzard, Plague, Black Hole and a Tiny Nuke.
 - Builder cards bring new villagers.
 
-**The rival god** plans a real village, expands with outposts toward deposits and the Shrine, and casts cards. It
-defends its land, hunts nests and relics with its hero, upgrades forms and sounds the war horn in waves.
+**The rival** builds a village, defends its side of the river, and attacks in waves with its troops and hero.
 
 **5 heroes, 17 weapons, 6 gadgets, 6 pets and a skin editor.**
 - **Heroes:** Ember (fire), Terra (earth), Volt (lightning), Frost (ice) and Grim (shadow).
@@ -76,7 +60,6 @@ defends its land, hunts nests and relics with its hero, upgrades forms and sound
 **Other modes.**
 - **Horde Nights:** your village alone on the island. Every night a bigger horde lands on the beaches, with a
   giant every 5th night.
-- **Arena Duel:** the classic lane battle with towers, bridges and elixir.
 - **God Box:** a full sandbox world. Paint terrain, spawn four tribes, watch villages grow into warring kingdoms,
   and unleash meteors, plagues, black holes and atomic bombs.
 - **Training:** a coached first match.

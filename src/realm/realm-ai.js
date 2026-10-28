@@ -1,14 +1,23 @@
-// The rival god: plans its village, casts Divine Cards, steers its hero and sounds the war horn.
-// The same controller can drive team 0 for AI-vs-AI tests and attract mode.
+// The rival god: builds a small village, sends troops at your castle, defends its half, and steers its hero.
+// The same controller can drive team 0 for AI-vs-AI tests.
 
 import { dist, dist2 } from '../core/util.js';
 import { CARDS } from '../data/cards.js';
 import { AI_DIFFICULTY } from '../data/arenas.js';
 import { isBuildingKind } from '../battle/combat.js';
-import { spellReady, gadgetReady, formUpgradeCost } from '../battle/hero.js';
-import { STRUCTURES, WILD, ELEMENT_COST, AGES } from './constants.js';
+import { spellReady } from '../battle/hero.js';
+import { STRUCTURES, WILD, cardBricks } from './constants.js';
 
-const ELEMENTS = ['fire', 'ice', 'lightning', 'earth'];
+/** How much the rival builds, by difficulty: [houses, towers, barracks] targets. */
+const BUILD_PLAN = {
+  tutorial: [1, 1, 0],
+  easy: [2, 1, 1],
+  normal: [3, 2, 1],
+  hard: [3, 2, 2],
+  master: [4, 3, 2],
+};
+/** Bricks the rival waits for before it starts an attack. */
+const PUSH_AT = { tutorial: 260, easy: 200, normal: 170, hard: 150, master: 140 };
 
 export class RealmAI {
   /**
@@ -19,17 +28,14 @@ export class RealmAI {
   constructor(R, team, difficulty = 'normal') {
     this.R = R;
     this.team = team;
-    this.diffId = difficulty;
-    this.diff = AI_DIFFICULTY[difficulty] || AI_DIFFICULTY.normal;
-    this.t = 1.5 + R.rng.next();
-    this.buildT = 2 + R.rng.next() * 2;
+    this.diffId = AI_DIFFICULTY[difficulty] ? difficulty : 'normal';
+    this.diff = AI_DIFFICULTY[this.diffId];
+    this.t = 2 + R.rng.next();
     this.heroT = 0.3;
     this.emoteCd = 0;
     this.enabled = true;
-    this.chargeUntil = 0;
     R.on('end', (r) => this.react(r.winner === this.team ? 'laugh' : 'gg', 0.9, true));
     R.on('crown', ({ team: t }) => this.react(t === this.team ? 'laugh' : 'angry', 0.5));
-    R.on('relic', ({ team: t }) => t === this.team && this.react('thumbs', 0.3));
   }
 
   get me() {
@@ -56,32 +62,27 @@ export class RealmAI {
       this.heroT = 0.35;
       this.driveHero();
     }
-    this.buildT -= dt;
-    if (this.buildT <= 0) {
-      const [a, b] = this.diff.think;
-      this.buildT = (a + b) * 1.3 + R.rng.next();
-      this.planBuild();
-      this.stance();
-    }
     this.t -= dt;
     if (this.t > 0) return;
     const [a, b] = this.diff.think;
     this.t = a + R.rng.next() * (b - a);
     if (R.rng.chance(this.diff.mistakes)) return;
-    this.playCards();
+    if (this.defend()) return;
+    if (this.build()) return;
+    this.attack();
   }
 
   // ───────────────────────── reading the island ─────────────────────────
 
-  /** Enemy units inside or right next to our territory. */
+  /** Enemy units on our half of the island. */
   threats() {
     const R = this.R;
     const list = [];
     for (const e of R.entities) {
-      if (!e.alive || e.team === this.team || e.untargetable || isBuildingKind(e)) continue;
+      if (!e.alive || e.team === this.team || e.team === WILD || e.untargetable || isBuildingKind(e)) continue;
       if (e.kind !== 'troop' && e.kind !== 'hero') continue;
       if (e.status?.invisible > 0) continue;
-      if (R.tileOwner(e.x, e.y) === this.team || this.nearOwnBuilding(e, 4)) list.push(e);
+      if (R.tileOwner(e.x, e.y) === this.team) list.push(e);
     }
     if (!list.length) return null;
     let value = 0;
@@ -98,14 +99,7 @@ export class RealmAI {
     return { list, value, x: cx / value, y: cy / value, air };
   }
 
-  nearOwnBuilding(e, r) {
-    for (const s of this.R.structures) {
-      if (s.alive && s.team === this.team && dist2(s.x, s.y, e.x, e.y) <= r * r) return true;
-    }
-    return false;
-  }
-
-  /** Defenders near a point: our units, hero and shooting buildings. */
+  /** Our fighters near a point. */
   defenseAt(x, y) {
     let own = 0;
     for (const e of this.R.entities) {
@@ -120,55 +114,21 @@ export class RealmAI {
     return own;
   }
 
-  /** Our territory tile closest to (x, y). */
-  frontier(x, y) {
-    const R = this.R;
-    let best = null;
-    let bd = Infinity;
-    for (let ty = 0; ty < R.H; ty++) {
-      for (let tx = 0; tx < R.W; tx++) {
-        const i = ty * R.W + tx;
-        if (R.owner[i] !== this.team || R.grid.occ[i] !== 0) continue;
-        const d = dist2(tx + 0.5, ty + 0.5, x, y);
-        if (d < bd) {
-          bd = d;
-          best = { x: tx + 0.5, y: ty + 0.5 };
-        }
-      }
-    }
-    return best;
-  }
-
-  clusterAt(x, y, r, team = 'enemy') {
+  clusterAt(x, y, r) {
     let value = 0;
     let friendly = 0;
-    let buildings = 0;
     for (const e of this.R.entities) {
       if (!e.alive || e.untargetable || e.kind === 'critter' || e.kind === 'pickup') continue;
       if (dist2(e.x, e.y, x, y) > r * r) continue;
-      const v = e.kind === 'hero' ? 3 : isBuildingKind(e) ? (e.struct === 'keep' ? 4 : 2) : e.kind === 'villager' ? 0.6 : e.costShare || 1;
+      const v = e.kind === 'hero' ? 3 : isBuildingKind(e) ? (e.struct === 'keep' ? 4 : 2) : e.kind === 'villager' ? 0.5 : e.costShare || 1;
       if (e.team === this.team) friendly += v;
-      else if (team === 'enemy' && e.team !== WILD) {
-        value += v;
-        if (isBuildingKind(e)) buildings++;
-      }
+      else if (e.team !== WILD) value += v;
     }
-    return { value, friendly, buildings };
-  }
-
-  bestCluster(r) {
-    let best = null;
-    for (const e of this.R.entities) {
-      if (!e.alive || e.team === this.team || e.team === WILD || e.untargetable || e.kind === 'critter') continue;
-      const c = this.clusterAt(e.x, e.y, r);
-      if (!best || c.value > best.value) best = { ...c, x: e.x, y: e.y };
-    }
-    return best;
+    return { value, friendly };
   }
 
   hand() {
-    const p = this.me;
-    return p.hand.map((id, slot) => ({ id, slot, card: CARDS[id] })).filter((c) => c.card);
+    return this.me.hand.map((id, slot) => ({ id, slot, card: CARDS[id], cost: cardBricks(CARDS[id]) })).filter((c) => c.card);
   }
 
   play(c, x, y) {
@@ -178,207 +138,120 @@ export class RealmAI {
     return R.playCard(this.team, c.slot, pt.x, pt.y).ok;
   }
 
-  // ───────────────────────── cards ─────────────────────────
+  /** A spot on our side of the river, in front of our castle, toward (x, y). */
+  frontSpot(x) {
+    const R = this.R;
+    const y = this.team === 0 ? R.H / 2 + 3 : R.H / 2 - 3;
+    return { x: Math.max(3, Math.min(R.W - 3, x)), y };
+  }
 
-  playCards() {
+  // ───────────────────────── decisions ─────────────────────────
+
+  defend() {
+    const p = this.me;
+    const th = this.threats();
+    if (!th || th.value < 1.5 || this.defenseAt(th.x, th.y) >= th.value * 1.4) return false;
+    const hand = this.hand().filter((c) => c.cost <= p.bricks);
+    // a spell on a real clump
+    for (const c of hand.filter((h) => h.card.type === 'spell' && h.card.spell.radius && !['bless', 'wall'].includes(h.card.spell.kind))) {
+      const cl = this.clusterAt(th.x, th.y, c.card.spell.radius);
+      if (cl.value >= c.card.cost * 1.2 && cl.friendly < cl.value * 0.5 && this.play(c, th.x, th.y)) return true;
+    }
+    const fighters = hand.filter((c) => c.card.type !== 'spell' && !c.card.roles.includes('builder') && !c.card.roles.includes('economy'));
+    if (!fighters.length) return false;
+    const pick = fighters.find((c) => (th.air > th.value * 0.4 ? c.card.unit?.targets === 'both' || c.card.building?.targets === 'both' : true)) || fighters[0];
+    const k = p.keep;
+    const x = k ? (k.x + th.x * 2) / 3 : th.x;
+    const y = k ? (k.y + th.y * 2) / 3 : th.y;
+    return this.play(pick, x, y);
+  }
+
+  count(id) {
+    return this.R.structures.filter((s) => s.alive && s.team === this.team && s.struct === id).length;
+  }
+
+  build() {
+    const R = this.R;
+    const p = this.me;
+    if (!p.keep?.alive) return false;
+    const sites = R.structures.filter((s) => s.alive && s.team === this.team && s.built < 1).length;
+    if (sites >= 2) return false;
+    const [houses, towers, barracks] = BUILD_PLAN[this.diffId] || BUILD_PLAN.normal;
+    const t = R.time;
+    const wants = [];
+    if (this.count('house') < Math.min(houses, 1 + Math.floor(t / 40))) wants.push('house');
+    if (t > 25 && this.count('tower') < Math.min(towers, 1 + Math.floor(t / 90))) wants.push('tower');
+    if (t > 50 && this.count('barracks') < Math.min(barracks, 1 + Math.floor(t / 120))) wants.push('barracks');
+    for (const id of wants) {
+      if (p.bricks < STRUCTURES[id].cost) continue;
+      const spot = this.findSpot(id);
+      if (spot && R.orderBuild(this.team, id, spot.x0, spot.y0).ok) return true;
+    }
+    return false;
+  }
+
+  attack() {
     const R = this.R;
     const p = this.me;
     const hand = this.hand();
-    const affordable = hand.filter((c) => c.card.cost <= p.elixir);
+    const affordable = hand.filter((c) => c.cost <= p.bricks);
     if (!affordable.length) return;
-    const th = this.threats();
-
-    // 1) defend the village
-    if (th && th.value >= 2 && this.defenseAt(th.x, th.y) < th.value * 1.3) {
-      // a spell on a big clump first
-      const spells = affordable.filter((c) => c.card.type === 'spell' && c.card.spell.radius && c.card.spell.kind !== 'bless' && c.card.spell.kind !== 'wall');
-      for (const c of spells) {
-        const cl = this.clusterAt(th.x, th.y, c.card.spell.radius);
-        if (cl.value >= c.card.cost && cl.friendly < cl.value * 0.6) {
-          if (this.play(c, th.x, th.y)) return;
-        }
-      }
-      const troops = affordable.filter((c) => c.card.type !== 'spell' && !c.card.roles.includes('builder') && !c.card.roles.includes('economy'));
-      if (troops.length) {
-        const pick = troops.find((c) => th.air > th.value * 0.4 ? c.card.unit?.targets === 'both' || c.card.building?.targets === 'both' : true) || troops[0];
-        // between the threat and our nearest building
-        const home = this.nearestOwnStructure(th.x, th.y);
-        const x = home ? (home.x * 2 + th.x) / 3 : th.x;
-        const y = home ? (home.y * 2 + th.y) / 3 : th.y;
-        if (this.play(pick, x, y)) return;
-      }
+    // value spells on enemy clumps
+    for (const c of affordable.filter((h) => h.card.type === 'spell' && h.card.spell.radius && !['bless', 'wall'].includes(h.card.spell.kind))) {
+      const best = this.bestCluster(c.card.spell.radius);
+      if (best && best.value >= c.card.cost * 1.4 && best.friendly < best.value * 0.4 && this.play(c, best.x, best.y)) return;
     }
-
-    // 2) value spells on enemy clumps (and their buildings late in the game)
-    for (const c of affordable.filter((c) => c.card.type === 'spell' && c.card.spell.radius && !['bless', 'wall'].includes(c.card.spell.kind))) {
-      const cl = this.bestCluster(c.card.spell.radius);
-      if (cl && cl.value >= c.card.cost + 1.5 && cl.friendly < cl.value * 0.5) {
-        if (this.play(c, cl.x, cl.y)) return;
+    // gather a wave: wait for enough bricks, then play several cards in a row at the same bridge
+    const pushAt = PUSH_AT[this.diffId] * (R.rush ? 0.6 : 1);
+    if (p.bricks < pushAt && !this.pushing) return;
+    const troops = affordable
+      .filter((c) => c.card.type === 'troop' && !c.card.roles.includes('builder'))
+      .sort((a, b) => (b.card.roles.includes('tank') ? 1 : 0) - (a.card.roles.includes('tank') ? 1 : 0) || b.cost - a.cost);
+    if (!troops.length) return;
+    const ek = this.enemy?.keep;
+    const lane = this.lane ?? (this.lane = [5, this.R.W / 2, this.R.W - 5][Math.floor(R.rng.next() * 3)]);
+    const spot = this.frontSpot(ek ? (lane + ek.x) / 2 : lane);
+    if (this.play(troops[0], spot.x, spot.y)) {
+      // keep the push going for a few cards, then pick a new lane next time
+      this.pushing = (this.pushing || 0) + 1;
+      if (this.pushing >= 3 + (this.diffId === 'hard' || this.diffId === 'master' ? 1 : 0) || p.bricks < 30) {
+        this.pushing = 0;
+        this.lane = null;
       }
-    }
-
-    // 3) villagers when there is room in the tribe
-    const builder = affordable.find((c) => c.card.roles.includes('builder'));
-    if (builder && p.pop + 2 <= p.popCap && !th && p.elixir >= 4) {
-      const k = p.keep;
-      if (k && this.play(builder, k.x, k.y + (this.team === 0 ? -2.5 : 2.5))) return;
-    }
-
-    // 4) push: summons at the frontier facing the enemy (or beside our hero on the attack)
-    const pushAt = this.diff.pushAt - (R.ageIdx >= 3 ? 2 : R.ageIdx >= 2 ? 1 : 0);
-    if (p.elixir >= pushAt || p.elixir >= 9.5) {
-      const troops = affordable
-        .filter((c) => c.card.type === 'troop' && !c.card.roles.includes('builder'))
-        .sort((a, b) => (b.card.roles.includes('win') || b.card.roles.includes('tank') ? 1 : 0) - (a.card.roles.includes('win') || a.card.roles.includes('tank') ? 1 : 0) || b.card.cost - a.card.cost);
-      const target = R.nearestEnemyBuilding(this.team, p.keep?.x ?? R.W / 2, p.keep?.y ?? R.H / 2);
-      if (troops.length && target) {
-        const h = p.hero;
-        let spot = null;
-        if (h && h.alive && dist2(h.x, h.y, target.x, target.y) < dist2(p.keep.x, p.keep.y, target.x, target.y) * 0.6) spot = { x: h.x, y: h.y };
-        else spot = this.frontier(target.x, target.y);
-        if (spot && this.play(troops[0], spot.x, spot.y)) {
-          this.lastPush = R.time;
-          return;
-        }
-      }
-      // spend instead of wasting Faith: defensive buildings near the front
-      const bld = affordable.find((c) => c.card.type === 'building' && !c.card.roles.includes('economy'));
-      if (bld && p.elixir >= 9.5 && target) {
-        const spot = this.frontier(target.x, target.y);
-        if (spot && this.play(bld, spot.x, spot.y)) return;
-      }
-      const mine = affordable.find((c) => c.card.roles.includes('economy') && c.card.type === 'building');
-      if (mine && p.elixir >= 9.5 && p.keep) this.play(mine, p.keep.x + 2.5, p.keep.y);
     }
   }
 
-  nearestOwnStructure(x, y) {
+  bestCluster(r) {
     let best = null;
-    let bd = Infinity;
-    for (const s of this.R.structures) {
-      if (!s.alive || s.team !== this.team) continue;
-      const d = dist2(s.x, s.y, x, y);
-      if (d < bd) {
-        bd = d;
-        best = s;
-      }
+    for (const e of this.R.entities) {
+      if (!e.alive || e.team === this.team || e.team === WILD || e.untargetable || e.kind === 'critter' || e.kind === 'villager') continue;
+      const c = this.clusterAt(e.x, e.y, r);
+      if (!best || c.value > best.value) best = { ...c, x: e.x, y: e.y };
     }
     return best;
   }
 
-  // ───────────────────────── village planning ─────────────────────────
-
-  count(id, builtOnly = false) {
-    return this.R.structures.filter((s) => s.alive && s.team === this.team && s.struct === id && (!builtOnly || s.built >= 1)).length;
-  }
-
-  planBuild() {
-    const R = this.R;
-    const p = this.me;
-    if (!p.keep?.alive) return;
-    const age = R.ageIdx;
-    const scaffolds = R.structures.filter((s) => s.alive && s.team === this.team && s.built < 1).length;
-    if (scaffolds >= 2 + (age >= 2 ? 1 : 0)) return;
-    const houses = this.count('house');
-    const towers = this.count('tower');
-    const temples = this.count('temple');
-    const barracks = this.count('barracks');
-    const outposts = this.count('outpost');
-    const pendingHouses = R.structures.filter((s) => s.alive && s.team === this.team && s.struct === 'house' && s.built < 1).length;
-    const wants = [];
-    if (p.pop >= p.popCap - 1 && pendingHouses === 0 && houses < 9) wants.push('house');
-    if (R.time > 25 && temples < 1) wants.push('temple');
-    if (R.time > 45 && barracks < 1) wants.push('barracks');
-    if (this.homeDepositsLow() && outposts < 4) wants.push('outpost');
-    if (R.time > 60 && towers < 1 + Math.ceil(age * 1.5)) wants.push('tower');
-    if (age >= 1 && outposts < 2 && R.shrine && R.shrine.team !== this.team) wants.push('outpost');
-    if (age >= 2 && barracks < 2 + (p.bricks > 300 ? 1 : 0)) wants.push('barracks');
-    if (age >= 1 && temples < 2 && p.bricks > 160) wants.push('temple');
-    if (p.bricks > 220 && houses < 9) wants.push('house');
-    // hero forms come first when affordable and the village is fine
-    const h = p.hero;
-    const formCost = h?.alive ? formUpgradeCost(h) : null;
-    if (formCost != null && this.diff.upgrades && p.bricks >= formCost && (age >= 1 || p.bricks >= formCost + 60)) {
-      R.heroUpgrade(this.team);
-      return;
-    }
-    // tower elements
-    if (this.diff.towers && p.bricks >= ELEMENT_COST + 60) {
-      const tw = R.structuresOf(this.team, 'tower').find((t) => !t.element);
-      if (tw) {
-        R.elementTower(this.team, tw, ELEMENTS[Math.floor(R.rng.next() * ELEMENTS.length)]);
-        return;
-      }
-    }
-    for (const id of wants) {
-      if (p.bricks < STRUCTURES[id].cost) continue;
-      const spot = this.findSpot(id);
-      if (!spot) continue;
-      const res = R.orderBuild(this.team, id, spot.x0, spot.y0);
-      if (res.ok) return;
-    }
-  }
-
-  homeDepositsLow() {
-    const R = this.R;
-    let left = 0;
-    for (const d of R.deposits) {
-      if (d.amount <= 0) continue;
-      for (const k of R.dropOffs(this.team)) {
-        if (dist(k.x, k.y, d.x, d.y) <= 15 && R.tileOwner(d.x, d.y) !== 1 - this.team) {
-          left += d.amount;
-          break;
-        }
-      }
-    }
-    return left < 220;
-  }
-
-  /** Choose a footprint for a structure. */
+  /** Choose a footprint for a building on our half. */
   findSpot(id) {
     const R = this.R;
     const def = STRUCTURES[id];
-    const p = this.me;
-    const k = p.keep;
-    const ek = this.enemy?.keep;
-    const toward = ek ? { x: ek.x, y: ek.y } : { x: R.W / 2, y: R.H / 2 };
-    // outposts aim at the best rich deposit or the shrine
-    let goal = null;
-    if (id === 'outpost') {
-      let bd = Infinity;
-      for (const d of R.deposits) {
-        if (d.amount <= 100 || R.tileOwner(d.x, d.y) === this.team) continue;
-        const near = Math.min(...R.dropOffs(this.team).map((o) => dist(o.x, o.y, d.x, d.y)));
-        if (near <= 7) continue;
-        const sc = dist(k.x, k.y, d.x, d.y) + (R.tileOwner(d.x, d.y) === 1 - this.team ? 30 : 0);
-        if (sc < bd) {
-          bd = sc;
-          goal = d;
-        }
-      }
-      if (!goal && R.shrine && R.shrine.team !== this.team) goal = R.shrine;
-      if (!goal) goal = toward;
-    }
+    const k = this.me.keep;
+    const toRiver = this.team === 0 ? -1 : 1;
     let best = null;
     let bs = Infinity;
-    const step = id === 'wall' ? 1 : 1;
-    for (let y0 = 1; y0 < R.H - def.h; y0 += step) {
-      for (let x0 = 1; x0 < R.W - def.w; x0 += step) {
+    for (let y0 = 1; y0 < R.H - def.h; y0++) {
+      for (let x0 = 1; x0 < R.W - def.w; x0++) {
         const cx = x0 + def.w / 2;
         const cy = y0 + def.h / 2;
-        // quick reject: centre must be ours
         if (R.owner[Math.floor(cy) * R.W + Math.floor(cx)] !== this.team) continue;
         const dk = dist(cx, cy, k.x, k.y);
         let score;
-        if (id === 'house' || id === 'temple') score = dk + (dk < 3.2 ? 6 : 0) + R.rng.next() * 1.5;
-        else if (id === 'barracks') score = dk * 0.6 + dist(cx, cy, toward.x, toward.y) * 0.3 + (dk < 3.5 ? 6 : 0);
-        else if (id === 'tower') score = dist(cx, cy, toward.x, toward.y) + dk * 0.4 + this.nearSame(cx, cy, 'tower') * 4;
-        else if (id === 'outpost') score = dist(cx, cy, goal.x, goal.y);
-        else score = dk;
+        // towers stand between the castle and the river; houses and barracks stay behind
+        if (id === 'tower') score = Math.abs(dk - 5.5) + Math.abs(cx - k.x) * 0.3 + this.nearSame(cx, cy, 'tower') * 3 - (cy - k.y) * toRiver * 0.4;
+        else score = dk + (dk < 3.4 ? 8 : 0) + R.rng.next() * 1.5 + (id === 'barracks' ? Math.max(0, (cy - k.y) * toRiver * -0.5) : 0);
         if (score >= bs) continue;
         if (R.placementProblem(this.team, id, x0, y0)) continue;
-        // leave room to walk around buildings
-        if (id !== 'wall' && this.crowded(x0, y0, def.w, def.h)) continue;
+        if (this.crowded(x0, y0, def.w, def.h)) continue;
         bs = score;
         best = { x0, y0 };
       }
@@ -394,7 +267,6 @@ export class RealmAI {
 
   crowded(x0, y0, w, h) {
     const R = this.R;
-    // require a free ring of tiles on at least 3 sides
     let blockedSides = 0;
     const sides = [
       [x0 - 1, y0, 1, h],
@@ -415,22 +287,6 @@ export class RealmAI {
     return blockedSides > 1;
   }
 
-  stance() {
-    const R = this.R;
-    const p = this.me;
-    if (this.diffId === 'tutorial') return;
-    // gentle rivals keep their warriors home until the Age of War
-    if (this.diffId === 'easy' && R.ageIdx < 2) return R.setStance(this.team, 'guard');
-    if (R.ageIdx < 1 && R.time < 120) return R.setStance(this.team, 'guard');
-    const enough = p.warriors >= (R.ageIdx >= 3 ? 3 : R.ageIdx >= 2 ? 4 : 6);
-    if (p.stance === 'guard' && enough && !this.threats()) {
-      R.setStance(this.team, 'charge');
-      this.chargeUntil = R.time + 35;
-    } else if (p.stance === 'charge' && (p.warriors < 2 || R.time > this.chargeUntil)) {
-      R.setStance(this.team, 'guard');
-    }
-  }
-
   // ───────────────────────── hero ─────────────────────────
 
   driveHero() {
@@ -439,60 +295,42 @@ export class RealmAI {
     const h = p.hero;
     if (!h || !h.alive) return;
     const k = p.keep;
-    const th = this.threats();
-    // spells & gadget
-    if (this.diff.heroSpells) {
-      const near = this.clusterAt(h.x, h.y, 3.2);
-      for (let i = 0; i < 2; i++) {
-        if (spellReady(h, i) && (near.value >= 2 || (h.hp < h.maxHp * 0.4 && near.value >= 1))) {
-          R.heroSpell(this.team, i);
-          break;
-        }
-      }
-      if (gadgetReady(h) && (h.gadget === 'medkit' ? h.hp < h.maxHp * 0.5 : near.value >= 2)) R.heroGadget(this.team);
-    }
+    const near = this.clusterAt(h.x, h.y, 3.2);
+    if (this.diff.heroSpells !== false && near.value >= 2 && (spellReady(h, 0) || spellReady(h, 1))) R.heroPower(this.team);
     // retreat when hurt
     if (h.hp < h.maxHp * 0.3 && k) {
-      if (dist2(h.x, h.y, k.x, k.y) > 9) R.heroMove(this.team, k.x, k.y + (this.team === 0 ? 2 : -2));
+      if (dist2(h.x, h.y, k.x, k.y) > 9) R.heroMove(this.team, k.x, k.y + (this.team === 0 ? -2 : 2));
       return;
     }
-    // defend home
+    // defend our half
+    const th = this.threats();
     if (th && th.value >= 1.5) {
       const tgt = th.list.reduce((a, b) => (dist2(a.x, a.y, h.x, h.y) < dist2(b.x, b.y, h.x, h.y) ? a : b));
       if (h.focus !== tgt) R.heroFocus(this.team, tgt);
       return;
     }
-    // grab relics
-    const relic = R.pickups.find((pk) => pk.alive && pk.type === 'relic' && dist2(pk.x, pk.y, h.x, h.y) < 20 * 20);
-    if (relic) {
-      R.heroMove(this.team, relic.x, relic.y);
-      return;
-    }
-    // clear the closest nest once the hero is strong enough
-    if (R.ageIdx >= 1 && h.hp > h.maxHp * 0.65) {
-      const nest = R.nests.filter((n) => n.alive).sort((a, b) => dist2(a.x, a.y, k.x, k.y) - dist2(b.x, b.y, k.x, k.y))[0];
-      if (nest && dist(nest.x, nest.y, k.x, k.y) < 26 && (h.form >= 2 || R.ageIdx >= 2)) {
-        if (h.focus !== nest) R.heroFocus(this.team, nest);
-        return;
+    // walk with our troops when they cross the river; otherwise wait at the front
+    let lead = null;
+    let ld = Infinity;
+    const ek = this.enemy?.keep;
+    for (const e of R.entities) {
+      if (!e.alive || e.team !== this.team || e.kind !== 'troop' || !ek) continue;
+      const d = dist2(e.x, e.y, ek.x, ek.y);
+      if (d < ld) {
+        ld = d;
+        lead = e;
       }
     }
-    // take the shrine
-    if (R.shrine && R.shrine.team !== this.team && R.ageIdx >= 1 && h.hp > h.maxHp * 0.6) {
-      if (dist2(h.x, h.y, R.shrine.x, R.shrine.y) > 4) R.heroMove(this.team, R.shrine.x, R.shrine.y + (this.team === 0 ? 1.8 : -1.8));
-      return;
-    }
-    // join a charge, otherwise guard the frontier
-    if (p.stance === 'charge') {
+    if (lead && R.tileOwner(lead.x, lead.y) !== this.team && ek) {
       const tgt = R.nearestEnemyBuilding(this.team, h.x, h.y);
-      if (tgt && h.focus !== tgt) R.heroFocus(this.team, tgt);
+      if (tgt && dist2(tgt.x, tgt.y, lead.x, lead.y) < 49) {
+        if (h.focus !== tgt) R.heroFocus(this.team, tgt);
+      } else if (!h.moveTo || R.rng.chance(0.1)) R.heroMove(this.team, lead.x, lead.y + (this.team === 0 ? 1.2 : -1.2));
       return;
     }
-    if (!h.moveTo && !h.focus && R.rng.chance(0.15)) {
-      const ek = this.enemy?.keep;
-      const g = ek ? this.frontier(ek.x, ek.y) : null;
-      if (g) R.heroMove(this.team, g.x + (R.rng.next() - 0.5) * 3, g.y + (this.team === 0 ? 1.5 : -1.5));
+    if (!h.moveTo && !h.focus && R.rng.chance(0.12)) {
+      const spot = this.frontSpot(R.W / 2 + (R.rng.next() - 0.5) * 8);
+      R.heroMove(this.team, spot.x, spot.y + (this.team === 0 ? 1.5 : -1.5));
     }
   }
 }
-
-export { AGES };

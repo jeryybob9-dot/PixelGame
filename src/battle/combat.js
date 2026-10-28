@@ -37,6 +37,7 @@ export function damage(B, target, amount, opts = {}) {
   let dmg = amount;
   if (opts.crit) dmg *= opts.crit;
   if (src?.buildingBonus && isBuildingKind(target)) dmg *= src.buildingBonus;
+  if (src?.vsTroops && target.kind === 'troop') dmg *= src.vsTroops;
   dmg = Math.round(dmg);
   let left = dmg;
   if (target.shield > 0) {
@@ -435,6 +436,11 @@ function enemiesIn(B, team, x, y, r, opts = {}) {
 export { enemiesIn };
 
 /** Cast a spell card at (x, y). */
+/** Spell damage; the map may soften spells against some targets (Realm Clash: troops shrug off spells). */
+function spellDamage(B, e, amount, opts) {
+  return damage(B, e, amount * (B.spellMult ? B.spellMult(e) : 1), opts);
+}
+
 export function castSpell(B, team, card, x, y, level) {
   const s = card.spell;
   const m = levelMult(level);
@@ -442,13 +448,13 @@ export function castSpell(B, team, card, x, y, level) {
   switch (s.kind) {
     case 'volley':
       addArea(B, { kind: 'volley', team, x, y, radius: s.radius, t: s.delay, dur: s.delay, onEnd: () => {
-        for (const e of enemiesIn(B, team, x, y, s.radius)) damage(B, e, towerDmg(e, s.dmg * m), { source: null });
+        for (const e of enemiesIn(B, team, x, y, s.radius)) spellDamage(B, e, towerDmg(e, s.dmg * m), { source: null });
         B.sfx('arrow', { volume: 0.9 });
         B.dust(x, y, s.radius);
       } });
       break;
     case 'spark':
-      for (const e of enemiesIn(B, team, x, y, s.radius)) damage(B, e, towerDmg(e, s.dmg * m), { effects: { stun: s.stun } });
+      for (const e of enemiesIn(B, team, x, y, s.radius)) spellDamage(B, e, towerDmg(e, s.dmg * m), { effects: { stun: s.stun } });
       B.flashRing(x, y, s.radius, '#9ff6ff');
       for (let i = 0; i < 5; i++) B.bolt(x + (Math.random() - 0.5) * s.radius * 1.4, y - 3, x + (Math.random() - 0.5) * s.radius * 1.4, y + (Math.random() - 0.5) * s.radius, '#d8fbff');
       B.sfx('shoot_zap');
@@ -464,7 +470,7 @@ export function castSpell(B, team, card, x, y, level) {
     }
     case 'meteor':
       addArea(B, { kind: 'meteor', team, x, y, radius: s.radius, t: s.delay, dur: s.delay, onEnd: () => {
-        for (const e of enemiesIn(B, team, x, y, s.radius)) damage(B, e, towerDmg(e, s.dmg * m), { effects: { burn: { dps: 20 * m, dur: 2 } } });
+        for (const e of enemiesIn(B, team, x, y, s.radius)) spellDamage(B, e, towerDmg(e, s.dmg * m), { effects: { burn: { dps: 20 * m, dur: 2 } } });
         B.igniteGround(x, y, s.radius * 0.85, s.burnGround.dur, s.burnGround.dps * m, team);
         B.explosion(x, y, s.radius, '#ff7a2e');
         B.decal(x, y, s.radius);
@@ -477,7 +483,7 @@ export function castSpell(B, team, card, x, y, level) {
       addArea(B, { kind: 'quake', team, x, y, radius: s.radius, t: s.duration, dur: s.duration, every: 0.25, onTick: (dt) => {
         for (const e of enemiesIn(B, team, x, y, s.radius, { groundOnly: true })) {
           const dps = isBuildingKind(e) ? s.buildingDps * (e.kind === 'tower' ? 0.35 : 1) : s.dps;
-          damage(B, e, dps * m * dt, {});
+          spellDamage(B, e, dps * m * dt, {});
           if (!isBuildingKind(e)) applyEffects(B, e, { slow: { pct: s.slow, dur: 0.4 } });
         }
         B.shake(0.12);
@@ -501,7 +507,7 @@ export function castSpell(B, team, card, x, y, level) {
         addArea(B, { kind: 'delay', team, x: e.x, y: e.y, t: 0.18 * i + 0.05, dur: 0.2, onEnd: () => {
           if (!e.alive) return;
           B.bolt(e.x + 0.4, e.y - 6, e.x, e.y - 0.4, '#fffbe0', 3);
-          damage(B, e, towerDmg(e, s.dmg * m), { effects: { stun: s.stun } });
+          spellDamage(B, e, towerDmg(e, s.dmg * m), { effects: { stun: s.stun } });
           B.flashRing(e.x, e.y, 0.9, '#fff7a8');
           B.shake(0.2);
           B.sfx('lightning');
@@ -516,21 +522,21 @@ export function castSpell(B, team, card, x, y, level) {
     case 'acid':
       addArea(B, { kind: 'acid', team, x, y, radius: s.radius, t: s.duration, dur: s.duration, every: 0.25, onTick: (dt) => {
         for (const e of enemiesIn(B, team, x, y, s.radius)) {
-          damage(B, e, towerDmg(e, s.dps * m * dt), {});
+          spellDamage(B, e, towerDmg(e, s.dps * m * dt), {});
           if (!isBuildingKind(e)) applyEffects(B, e, { slow: { pct: s.slow, dur: 0.4 }, poison: { dps: 0.01, dur: 0.5 } });
         }
       } });
       B.sfx('poison');
       break;
     case 'blizzard':
-      for (const e of enemiesIn(B, team, x, y, s.radius)) damage(B, e, towerDmg(e, s.dmg * m), { effects: { freeze: s.freeze } });
+      for (const e of enemiesIn(B, team, x, y, s.radius)) spellDamage(B, e, towerDmg(e, s.dmg * m), { effects: { freeze: s.freeze } });
       addArea(B, { kind: 'blizzard', team, x, y, radius: s.radius, t: 1.2, dur: 1.2 });
       B.sfx('freeze');
       break;
     case 'plague':
       for (const e of enemiesIn(B, team, x, y, s.radius)) {
         if (e.kind === 'tower') {
-          damage(B, e, s.dps * s.duration * m * s.towerMult, {});
+          spellDamage(B, e, s.dps * s.duration * m * s.towerMult, {});
           continue;
         }
         if (isBuildingKind(e)) continue;
@@ -541,7 +547,7 @@ export function castSpell(B, team, card, x, y, level) {
       break;
     case 'blackhole':
       addArea(B, { kind: 'vortex', team, x, y, radius: s.radius, t: s.duration, dur: s.duration, pull: s.pull, dps: 0, big: true, onEnd: () => {
-        for (const e of enemiesIn(B, team, x, y, s.radius * 0.7)) damage(B, e, towerDmg(e, s.dmg * m), {});
+        for (const e of enemiesIn(B, team, x, y, s.radius * 0.7)) spellDamage(B, e, towerDmg(e, s.dmg * m), {});
         B.explosion(x, y, s.radius * 0.6, '#a35bff');
         B.shake(0.35);
         B.sfx('explosion_big');
@@ -553,7 +559,7 @@ export function castSpell(B, team, card, x, y, level) {
         for (const e of B.entities) {
           if (!e.alive || dist2(e.x, e.y, x, y) > (s.radius + e.r * 0.5) ** 2) continue;
           if (isBuildingKind(e) && e.team === team) continue;
-          damage(B, e, e.kind === 'tower' ? s.dmg * m * s.towerMult : s.dmg * m, {});
+          spellDamage(B, e, e.kind === 'tower' ? s.dmg * m * s.towerMult : s.dmg * m, {});
         }
         B.igniteGround(x, y, s.radius * 0.6, 4, 25 * m, -1);
         B.wasteland(x, y, s.radius * 0.8, s.wasteland);
@@ -592,7 +598,7 @@ export function updateAreas(B, dt) {
         const pull = a.pull * (1 - d / (a.radius + 0.5)) * dt / Math.max(1, (e.mass || 1) / 6);
         e.x += ((a.x - e.x) / d) * pull;
         e.y += ((a.y - e.y) / d) * pull;
-        if (a.dps) damage(B, e, a.dps * dt, {});
+        if (a.dps) spellDamage(B, e, a.dps * dt, {});
       }
     }
     if (a.follow) {

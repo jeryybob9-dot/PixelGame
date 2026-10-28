@@ -50,7 +50,7 @@ function defaultProfile() {
     stats: {
       battles: 0, wins: 0, losses: 0, draws: 0, threeCrowns: 0, towers: 0, kills: 0, heroKills: 0, cardsPlayed: 0,
       spellsCast: 0, bricks: 0, forms: 0, elements: 0, crowns: 0, bestWave: 0, wavesCleared: 0, godboxVisits: 0,
-      built: 0, relics: 0, nests: 0, realmBattles: 0, realmWins: 0, keepKills: 0, bestNights: 0, nights: 0,
+      built: 0, destroyed: 0, realmBattles: 0, realmWins: 0, keepKills: 0, bestNights: 0, nights: 0,
     },
     quests: { day: '', list: [] },
     achievements: {},
@@ -300,7 +300,8 @@ export function statValue(stat) {
 }
 export function ensureDailyQuests() {
   const today = dayKey();
-  if (profile.quests.day === today && profile.quests.list.length) return;
+  // quests from an older version of the game are rerolled
+  if (profile.quests.day === today && profile.quests.list.length && profile.quests.list.every((q) => QUEST_POOL.some((d) => d.id === q.id))) return;
   const rng = createRng(hashSeed(today + profile.createdAt));
   const picks = rng.shuffle(QUEST_POOL).slice(0, 3);
   profile.quests = { day: today, list: picks.map((q) => ({ id: q.id, progress: 0, claimed: false })) };

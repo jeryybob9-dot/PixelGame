@@ -24,8 +24,8 @@ export function findTarget(B, e, sight = SIGHT) {
     const d = edgeDist(e, o);
     const reach = buildingsOnly ? 99 : Math.max(sight, e.range + 0.5);
     if (d > reach) continue;
-    // prefer units over buildings slightly so troops defend
-    const score = d + (isBuildingKind(o) && !buildingsOnly ? 0.75 : 0);
+    // prefer units over buildings slightly so troops defend; villagers only when nothing better is near
+    const score = d + (isBuildingKind(o) && !buildingsOnly ? 0.75 : 0) + (o.kind === 'villager' ? 2.5 : 0);
     if (score < bestD) {
       bestD = score;
       best = o;
@@ -592,7 +592,7 @@ function towerLikeAttack(B, e, dt) {
       return;
     }
     fireProjectile(B, {
-      team: e.team, source: e, x: e.x, y: e.y - e.h * 0.8, target: e.target, speed: 12, dmg: e.dmg,
+      team: e.team, source: e, x: e.x, y: e.y - e.h * 0.8, target: e.target, speed: 12, dmg: e.dmg, splash: e.splash || 0,
       proj: e.type === 'king' ? 'brick' : 'arrow', effects, hitAir: true, elem: el,
     });
     B.sfx(e.type === 'king' ? 'shoot_rifle' : 'arrow', { volume: 0.3, pitch: e.type === 'king' ? 0.7 : 1 });

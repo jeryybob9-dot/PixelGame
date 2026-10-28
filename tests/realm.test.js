@@ -5,7 +5,8 @@ import { RealmAI } from '../src/realm/realm-ai.js';
 import { HordeDirector } from '../src/realm/horde.js';
 import { generateRealm } from '../src/realm/worldgen.js';
 import { Grid } from '../src/realm/grid.js';
-import { T, BLOCKING, STRUCTURES, MATCH_LENGTH } from '../src/realm/constants.js';
+import { T, BLOCKING, STRUCTURES, MATCH_LENGTH, RUSH_AT, BRICK_INCOME, BRICKS_START, START_VILLAGERS, HOUSE_VILLAGERS, cardBricks } from '../src/realm/constants.js';
+import { damage } from '../src/battle/combat.js';
 import { REALM_TILES } from '../src/art/realm-tiles.js';
 import { ARENAS } from '../src/data/arenas.js';
 import { CARDS, CARD_IDS } from '../src/data/cards.js';
@@ -36,7 +37,8 @@ test('islands are fair (point symmetric) and connect both keeps', () => {
       const reach = g.reachable(Math.floor(m.keeps[0].x), Math.floor(m.keeps[0].y));
       assert.ok(reach[Math.floor(m.keeps[1].y) * m.w + Math.floor(m.keeps[1].x)], `${biome}/${seed} keeps not connected`);
       for (const d of m.deposits) assert.ok(reach[Math.floor(d.y) * m.w + Math.floor(d.x)], `${biome}/${seed} deposit unreachable`);
-      assert.ok(m.deposits.length >= 4 && m.nests.length >= 2);
+      assert.ok(m.deposits.length >= 4);
+      assert.equal(m.bridges.length, 3, `${biome}/${seed} bridges`);
     }
   }
 });
@@ -52,16 +54,19 @@ test('A* paths avoid water and reach the goal', () => {
   for (const p of path) assert.ok(!BLOCKING.has(R.tiles[Math.floor(p.y) * R.W + Math.floor(p.x)]), 'waypoint in water');
 });
 
-test('a match starts with keeps, villagers, heroes, a shrine, nests and territory', () => {
+test('a match starts with castles, villagers, heroes and the river splitting the island', () => {
   const R = make(5);
   for (const t of [0, 1]) {
     const p = R.players[t];
     assert.equal(p.keep.struct, 'keep');
     assert.ok(p.hero && p.hero.alive);
-    assert.equal(R.entities.filter((e) => e.kind === 'villager' && e.team === t).length, 4);
+    assert.equal(p.bricks, BRICKS_START);
+    assert.equal(R.entities.filter((e) => e.kind === 'villager' && e.team === t).length, START_VILLAGERS);
     assert.equal(R.tileOwner(p.keep.x, p.keep.y + 2), t);
   }
-  assert.ok(R.shrine && R.nests.length >= 2);
+  // your half is the half below the river; nothing else to capture
+  assert.equal(R.tileOwner(R.W / 2, R.H - 1.5), 0);
+  assert.equal(R.tileOwner(R.W / 2, 1.5), 1);
   assert.equal(R.clock, MATCH_LENGTH);
 });
 
@@ -82,7 +87,7 @@ test('villagers mine bricks and build ordered buildings', () => {
   assert.equal(R.orderBuild(0, 'house', spot.x, spot.y).reason, 'occupied');
   run(R, 25);
   assert.equal(res.s.built, 1, `house built ${res.s.built}`);
-  assert.equal(p.popCap, 10);
+  assert.equal(p.popCap, START_VILLAGERS + HOUSE_VILLAGERS);
   assert.ok(p.stats.bricks > 0, 'no bricks delivered');
 });
 
@@ -108,7 +113,7 @@ test('every card can be cast in the realm', () => {
     const R = make(10);
     run(R, 3.5);
     const p = R.players[0];
-    p.elixir = 10;
+    p.bricks = 1000;
     p.hand[0] = id;
     const k = p.keep;
     const res = R.playCard(0, 0, k.x, k.y - 3.5);
@@ -131,26 +136,102 @@ test('hero joystick moves the hero and never walks on water', () => {
   assert.ok(h.x < x0 - 3);
 });
 
-test('ages advance, nights fall and raids launch', () => {
+test('cards cost bricks', () => {
   const R = make(12);
-  const seen = { age: 0, night: 0, raid: 0 };
-  R.on('age', () => seen.age++);
-  R.on('night', () => seen.night++);
-  R.on('raid', () => seen.raid++);
-  R.silent = true;
-  run(R, 240);
-  assert.ok(seen.age >= 3, `ages ${seen.age}`);
-  assert.ok(seen.night >= 1);
-  assert.ok(seen.raid >= 1);
+  run(R, 3.5);
+  const p = R.players[0];
+  p.hand[0] = 'knight';
+  p.bricks = cardBricks(CARDS.knight) - 1;
+  assert.equal(R.playCard(0, 0, p.keep.x, p.keep.y - 3.5).reason, 'bricks');
+  p.bricks += 1;
+  assert.ok(R.playCard(0, 0, p.keep.x, p.keep.y - 3.5).ok);
+  assert.equal(p.bricks, 0);
 });
 
-test('red bricks grant perks when the hero walks over them', () => {
-  const R = make(13);
+test('troops are sturdy: a spell no longer wipes out a fresh squad', () => {
+  for (const [troop, spell] of [['archers', 'meteor'], ['skeletons', 'volley'], ['gunners', 'spark'], ['knight', 'lightning']]) {
+    const R = make(13);
+    R.silent = true;
+    run(R, 3.5);
+    const [me, them] = R.players;
+    me.bricks = them.bricks = 1000;
+    me.hand[0] = troop;
+    them.hand[0] = spell;
+    const x = me.keep.x + 4;
+    const y = me.keep.y - 5;
+    assert.ok(R.playCard(0, 0, x, y).ok);
+    run(R, 1.2);
+    const squad = R.entities.filter((e) => e.alive && e.team === 0 && e.kind === 'troop');
+    assert.ok(squad.length >= 1);
+    const c = squad.reduce((a, e) => ({ x: a.x + e.x / squad.length, y: a.y + e.y / squad.length }), { x: 0, y: 0 });
+    assert.ok(R.playCard(1, 0, c.x, c.y).ok, `${spell} cast`);
+    run(R, 2.5);
+    const left = R.entities.filter((e) => e.alive && e.team === 0 && e.kind === 'troop');
+    assert.ok(left.length >= 1, `${spell} wiped out ${troop}`);
+  }
+});
+
+test('the last minute is a Brick Rush with double income', () => {
+  const R = make(15);
+  run(R, 3.5);
+  assert.equal(R.rush, false);
+  R.clock = RUSH_AT + 0.2;
+  run(R, 0.5);
+  assert.equal(R.rush, true);
+  assert.equal(R.players[0].income, BRICK_INCOME * 2);
+});
+
+test('at time-up the castle with more health wins', () => {
+  const R = make(16);
+  R.silent = true;
+  run(R, 3.5);
+  const k = R.players[1].keep;
+  k.hp = k.maxHp * 0.4;
+  R.clock = 0.2;
+  run(R, 0.5);
+  assert.equal(R.phase, 'ended');
+  assert.equal(R.result.winner, 0);
+  assert.equal(R.result.reason, 'time');
+  assert.equal(R.result.crowns[0], 2);
+});
+
+test('destroying the enemy castle wins at once with three crowns', () => {
+  const R = make(17);
+  R.silent = true;
+  run(R, 3.5);
+  const k = R.players[1].keep;
+  damage(R, k, k.hp + 10, { source: R.players[0].hero });
+  assert.equal(R.phase, 'ended');
+  assert.equal(R.result.winner, 0);
+  assert.equal(R.result.reason, 'keep');
+  assert.equal(R.result.crowns[0], 3);
+});
+
+test('heroes level up by fighting and the Power button casts', () => {
+  const R = make(18);
   run(R, 3.5);
   const h = R.players[0].hero;
-  R.spawnPickup('relic', h.x + 0.3, h.y);
-  run(R, 0.2);
-  assert.equal(R.players[0].relics.length, 1);
+  assert.equal(h.form, 1);
+  let levels = 0;
+  R.on('heroLevel', ({ team }) => team === 0 && levels++);
+  R.heroXp(0, 15);
+  assert.equal(h.form, 2);
+  assert.ok(levels >= 1);
+  assert.ok(R.heroPower(0));
+  assert.equal(R.heroPower(0), false, 'power is on cooldown');
+});
+
+test('the gadget fires by itself when the hero is hurt', () => {
+  const R = make(19);
+  run(R, 3.5);
+  const h = R.players[0].hero;
+  h.gadgetCd = 0;
+  run(R, 0.1);
+  assert.equal(h.gadgetCd, 0, 'used while healthy');
+  h.hp = h.maxHp * 0.3;
+  h.lastHitT = R.time;
+  run(R, 0.1);
+  assert.ok(h.gadgetCd > 0, 'medkit not used');
 });
 
 test('fire burns forest into ash', () => {

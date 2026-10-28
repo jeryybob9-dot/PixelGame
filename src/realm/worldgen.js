@@ -47,7 +47,7 @@ function makeNoise(rng) {
 
 /**
  * @param {{ seed: number, biome: string }} opts
- * @returns {{ w, h, tiles: Uint8Array, keeps: {x,y}[], deposits: {x,y,amount,rich}[], nests: {x,y,kind}[], shrine: {x,y}, critters: {x,y}[], river: boolean }}
+ * @returns {{ w, h, tiles: Uint8Array, keeps: {x,y}[], deposits: {x,y,amount,rich}[], nests: [], shrine: null, critters: {x,y}[], river: boolean }}
  */
 export function generateRealm({ seed, biome = 'meadow' }) {
   const rng = createRng(seed >>> 0 || 1);
@@ -57,12 +57,13 @@ export function generateRealm({ seed, biome = 'meadow' }) {
   const noise2 = makeNoise(rng);
   const ox = rng.next() * 100;
   const oy = rng.next() * 100;
-  const river = rng.next() < 0.55 && biome !== 'desert';
+  // a river always splits the island into two halves: your side and theirs
+  const river = true;
   const riverPhase = rng.next() * 6.28;
   rng.flip = rng.next() < 0.5;
   const keeps = [
-    { x: 20, y: 55 },
-    { x: W - 20, y: H - 55 },
+    { x: W / 2, y: H - 6 },
+    { x: W / 2, y: 6 },
   ];
   const mirror = (x, y) => ({ x: W - 1 - x, y: H - 1 - y });
 
@@ -88,12 +89,15 @@ export function generateRealm({ seed, biome = 'meadow' }) {
   };
 
   // guaranteed spine between the keeps
-  const spineX = (y) => W / 2 + Math.sin((y + 0.5 - H / 2) * 0.12) * (rng.flip ? -5 : 5) * Math.sin(((y + 0.5) / H) * Math.PI);
+  const spineX = (y) => W / 2 + Math.sin((y + 0.5 - H / 2) * 0.16) * (rng.flip ? -1.5 : 1.5) * Math.sin(((y + 0.5) / H) * Math.PI);
+  // the middle of the island is open ground (no lakes), so the river and its bridges read clearly
+  const riverY = (H - 1) / 2;
   for (let y = 0; y < H; y++) {
     const cx = spineX(y);
     for (let x = 0; x < W; x++) {
       const d = Math.abs(x + 0.5 - cx);
       if (d < 4.5) elev[y * W + x] = Math.max(elev[y * W + x], 0.42 - d * 0.03);
+      if (Math.abs(y - riverY) < 7 && x > 2 && x < W - 3) elev[y * W + x] = Math.max(elev[y * W + x], 0.32);
     }
   }
   const nearKeep = (x, y, r) => keeps.some((k) => Math.hypot(x + 0.5 - k.x, y + 0.5 - k.y) < r);
@@ -114,17 +118,17 @@ export function generateRealm({ seed, biome = 'meadow' }) {
     }
   }
 
-  // a river across the middle with fords (the curve is odd around the centre, so it is symmetric by itself)
+  // a river across the middle with three bridges: left, centre and right (symmetric by construction)
+  const bridges = [];
   if (river) {
-    const f1 = 6 + Math.floor(rng.next() * 7);
-    const fords = [f1, W - 1 - f1, Math.floor(W / 2) - 1, Math.floor(W / 2)];
+    const f1 = 5 + Math.floor(rng.next() * 2);
+    const cols = new Set([f1, f1 + 1, W - 1 - f1, W - 2 - f1, Math.floor(W / 2) - 1, Math.floor(W / 2)]);
+    for (const x of [f1 + 1, Math.floor(W / 2), W - 1 - f1]) bridges.push({ x, y: riverY + 0.5 });
     for (let x = 1; x < W - 1; x++) {
-      const cy = (H - 1) / 2 + Math.sin((x - (W - 1) / 2) * 0.3) * 1.5;
-      const ford = fords.some((f) => Math.abs(x - f) <= 0.5 || Math.abs(x - f) === 1 && (f === f1 || f === W - 1 - f1));
-      for (let y = Math.round(cy - 1); y <= Math.round(cy + 1); y++) {
+      for (const y of [Math.floor(riverY), Math.ceil(riverY)]) {
         const i = y * W + x;
         if (tiles[i] === T.DEEP) continue;
-        tiles[i] = ford ? T.SAND : T.WATER;
+        tiles[i] = cols.has(x) ? T.PATH : T.WATER;
       }
     }
   }
@@ -137,10 +141,10 @@ export function generateRealm({ seed, biome = 'meadow' }) {
       const e = elev[i];
       const f = detail(x, y, 5, 3);
       const g = detail(x, y, 4, 17);
-      const safe = nearKeep(x, y, 7);
-      const spine = Math.abs(x + 0.5 - spineX(y)) < 1.6;
-      if (!safe && !spine && e > 0.74 && g > 0.56) tiles[i] = biome === 'crystal' && g > 0.62 ? T.CRYSTAL : T.MOUNTAIN;
-      else if (!safe && e > 0.68 && g > 0.5) tiles[i] = T.HILL;
+      const safe = nearKeep(x, y, 7) || Math.abs(y - riverY) < 3.5;
+      const spine = Math.abs(x + 0.5 - spineX(y)) < 2.6;
+      if (!safe && !spine && e > 0.8 && g > 0.6) tiles[i] = biome === 'crystal' && g > 0.62 ? T.CRYSTAL : T.MOUNTAIN;
+      else if (!safe && !spine && e > 0.72 && g > 0.55) tiles[i] = T.HILL;
       else if (!safe && !spine && f > 0.58) tiles[i] = T.FOREST;
       else if (!safe && f < 0.27 && (biome === 'swamp' || g < 0.35)) tiles[i] = T.MUD;
       if (biome === 'frost' && tiles[i] === T.HILL) tiles[i] = T.SNOW;
@@ -227,28 +231,17 @@ export function generateRealm({ seed, biome = 'meadow' }) {
   };
   for (const k of keeps) used.push({ x: k.x, y: k.y });
 
-  const shrine = { x: W / 2, y: H / 2 };
-  // make sure the shrine stands on land
-  for (let y = Math.floor(shrine.y - 1.5); y <= Math.floor(shrine.y + 1); y++) for (let x = Math.floor(shrine.x - 1.5); x <= Math.floor(shrine.x + 1); x++) {
-    const i = y * W + x;
-    if (BLOCKING.has(tiles[i]) || tiles[i] === T.FOREST) tiles[i] = T.GRASS;
-  }
-  used.push({ ...shrine });
-
+  // brick deposits: two big ones by each castle and a rich one nearer the river
   const deposits = [];
   const k0 = keeps[0];
-  for (const [dx, dy] of [[-6, -2], [6, -3]]) {
-    for (const p of placePair(k0.x + dx, k0.y + dy, 0, 3, 3)) deposits.push({ ...p, amount: 450, rich: false });
+  for (const [dx, dy] of [[-5, -2], [5, -3]]) {
+    for (const p of placePair(k0.x + dx, k0.y + dy, 0, 3, 3)) deposits.push({ ...p, amount: 1400, rich: false });
   }
-  for (const [dx, dy] of [[-11, -14], [10, -12]]) {
-    for (const p of placePair(k0.x + dx, k0.y + dy, 0, 5, 5)) deposits.push({ ...p, amount: 800, rich: true });
-  }
-  const nests = [];
-  for (const [dx, dy, kind] of [[-12, -19, 'wolf'], [12, -21, 'bandit']]) {
-    for (const p of placePair(k0.x + dx, k0.y + dy, 1, 5, 6)) nests.push({ ...p, kind });
+  for (const [dx, dy] of [[-7, -10]]) {
+    for (const p of placePair(k0.x + dx, k0.y + dy, 0, 4, 4)) deposits.push({ ...p, amount: 1000, rich: true });
   }
   const critters = [];
-  for (let n = 0; n < 5; n++) for (const p of placePair(4 + rng.next() * (W - 8), H / 2 + 2 + rng.next() * 14, 0, 4, 3)) critters.push(p);
+  for (let n = 0; n < 4; n++) for (const p of placePair(4 + rng.next() * (W - 8), H / 2 + 2 + rng.next() * 10, 0, 4, 3)) critters.push(p);
 
-  return { w: W, h: H, tiles, keeps, deposits, nests, shrine, critters, river, biome, seed };
+  return { w: W, h: H, tiles, keeps, deposits, nests: [], shrine: null, critters, river, bridges, biome, seed };
 }

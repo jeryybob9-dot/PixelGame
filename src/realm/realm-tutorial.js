@@ -1,4 +1,4 @@
-// Training: a coach walks a new god through one gentle Realm Clash match.
+// Training: a coach walks a new player through one gentle Realm Clash match.
 
 export class RealmTutorial {
   /**
@@ -11,22 +11,24 @@ export class RealmTutorial {
     this.step = -1;
     this.t = 0;
     this.start = null;
-    // a sleepy rival with a softer keep
+    // a sleepy rival with a softer castle
     const k = R.players[1]?.keep;
     if (k) {
       k.maxHp *= 0.45;
       k.hp = k.maxHp;
       k.dmg *= 0.5;
     }
+    const p = R.players[0];
+    this.usedPower = false;
+    R.on('heroSpell', ({ team }) => team === 0 && (this.usedPower = true));
     this.steps = [
-      { text: 'Welcome, tiny god! Drag on the LEFT side of the island to walk your hero around.', focus: 'map', done: () => this.moved() > 3 },
-      { text: 'Your hero fires at enemies in range all by itself. Your villagers mine bricks and carry them home.', focus: 'map', done: () => this.t > 7 },
-      { text: 'Tap BUILD, pick a House and tap inside your blue borders. Houses let your tribe grow.', focus: 'build', done: () => this.ordered('house') },
-      { text: 'Faith fills up from your worshippers. Drag a card onto your land (or near your hero) to summon it.', focus: 'cards', done: () => this.R.players[0].stats.cardsPlayed > 0 },
-      { text: 'Build a Barracks. Warriors guard your borders. Tap the horn to send them to CHARGE!', focus: 'horn', done: () => this.ordered('barracks') || this.t > 30 },
-      { text: 'Bricks also power up your hero. Tap FORM when you have enough to transform!', focus: 'form', done: () => this.R.players[0].hero?.form >= 2 || this.t > 25 },
-      { text: 'Walk over Red Bricks from monster nests for powers, and capture the Shrine in the middle.', focus: 'minimap', done: () => this.t > 10 },
-      { text: 'Win by toppling the rival Keep at the top, or by ruling more land when the Age of Chaos ends. Good luck!', focus: 'minimap', done: () => this.t > 9 },
+      { text: 'Your goal: knock down the RED castle across the river. Keep your BLUE castle standing!', focus: 'castle', done: () => this.t > 6 },
+      { text: 'Drag on the LEFT side of the island to walk your hero. It attacks enemies by itself.', focus: 'map', done: () => this.moved() > 3 },
+      { text: 'Your villagers mine bricks. Bricks pay for everything: troops, spells and buildings.', focus: 'bricks', done: () => this.t > 6 },
+      { text: 'Drag a card onto your side of the river. Troops march to the red castle on their own.', focus: 'cards', done: () => p.stats.cardsPlayed > 0 },
+      { text: 'Tap BUILD and place a House. More villagers means more bricks.', focus: 'build', done: () => this.ordered('house') },
+      { text: 'Tap POWER for your hero\'s special attack. Your hero levels up by fighting.', focus: 'power', done: () => this.usedPower || this.t > 20 },
+      { text: 'Send a few troops together, follow the red arrow and knock the red castle down!', focus: 'goal', done: () => this.t > 10 },
     ];
   }
 
