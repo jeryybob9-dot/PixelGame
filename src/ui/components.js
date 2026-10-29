@@ -41,13 +41,13 @@ export function cardTile(cardId, o = {}) {
   const r = RARITY_INFO[c.rarity];
   const tile = el(`button.card-tile.r-${c.rarity}${o.small ? '.small' : ''}${o.locked ? '.locked' : ''}${o.selected ? '.selected' : ''}`, {
     type: 'button',
-    'aria-label': `${c.name}, ${r.name}, costs ${c.cost * 10} bricks`,
+    'aria-label': `${c.name}, ${r.name}, costs ${c.cost} elixir`,
     dataset: { card: cardId },
     onclick: o.onClick,
   },
   el('div.card-frame', null,
     el('img.card-art', { src: cardArtURL(cardId), alt: '', draggable: 'false' }),
-    o.showCost !== false ? el('div.card-cost', null, el('span', { text: String(c.cost * 10) })) : null,
+    o.showCost !== false ? el('div.card-cost', null, el('span', { text: String(c.cost) })) : null,
     o.isNew ? el('div.card-new', { text: 'NEW' }) : null,
     o.locked ? el('div.card-lock', null, icon('ui_lock', '', 2), o.lockText ? el('small', { text: o.lockText }) : null) : null),
   o.small ? null : el('div.card-name', { text: c.name }),

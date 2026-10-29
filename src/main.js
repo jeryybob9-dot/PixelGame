@@ -8,7 +8,8 @@ import { realmScreen } from './ui/realm-screen.js';
 import { luckyScreen } from './ui/lucky.js';
 import { skinScreen } from './ui/skin-editor.js';
 import { godboxScreen } from './ui/godbox-screen.js';
-import { getProfile, saveNow } from './core/profile.js';
+import { getProfile, saveNow, startAutosave, profileSnapshot, replaceProfile, isFreshProfile, events as profileEvents } from './core/profile.js';
+import { startCloudSave } from './core/cloud.js';
 import { drawHero, drawSprite } from './art/sprite-cache.js';
 import { animatedCanvas } from './ui/components.js';
 import { installSkin } from './ui/skin.js';
@@ -73,7 +74,19 @@ async function boot() {
   app.go('title');
   // test/debug hook
   globalThis.__BBR = { app, profile: getProfile };
+  // progress saves itself: on every change, on a timer as a safety net, when the app is hidden or closed, and to
+  // the player's account when the game runs inside claude.ai
+  startAutosave();
   window.addEventListener('beforeunload', () => saveNow());
+  startCloudSave({
+    snapshot: profileSnapshot,
+    isFresh: isFreshProfile,
+    events: profileEvents,
+    restore: (p) => {
+      replaceProfile(p);
+      if (app.current === 'home') app.go('home');
+    },
+  }).catch(() => {});
 }
 
 const hot = globalThis.claude?.hot;

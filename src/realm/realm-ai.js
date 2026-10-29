@@ -6,7 +6,7 @@ import { CARDS } from '../data/cards.js';
 import { AI_DIFFICULTY } from '../data/arenas.js';
 import { isBuildingKind } from '../battle/combat.js';
 import { spellReady } from '../battle/hero.js';
-import { STRUCTURES, WILD, cardBricks } from './constants.js';
+import { STRUCTURES, WILD } from './constants.js';
 
 /** How much the rival builds, by difficulty: [houses, towers, barracks] targets. */
 const BUILD_PLAN = {
@@ -17,7 +17,8 @@ const BUILD_PLAN = {
   master: [4, 3, 2],
 };
 /** Bricks the rival waits for before it starts an attack. */
-const PUSH_AT = { tutorial: 260, easy: 200, normal: 170, hard: 150, master: 140 };
+/** Elixir the rival saves before it starts a push. */
+const PUSH_AT = { tutorial: 10, easy: 9, normal: 8, hard: 7, master: 7 };
 
 export class RealmAI {
   /**
@@ -128,7 +129,7 @@ export class RealmAI {
   }
 
   hand() {
-    return this.me.hand.map((id, slot) => ({ id, slot, card: CARDS[id], cost: cardBricks(CARDS[id]) })).filter((c) => c.card);
+    return this.me.hand.map((id, slot) => ({ id, slot, card: CARDS[id], cost: CARDS[id]?.cost })).filter((c) => c.card);
   }
 
   play(c, x, y) {
@@ -151,7 +152,7 @@ export class RealmAI {
     const p = this.me;
     const th = this.threats();
     if (!th || th.value < 1.5 || this.defenseAt(th.x, th.y) >= th.value * 1.4) return false;
-    const hand = this.hand().filter((c) => c.cost <= p.bricks);
+    const hand = this.hand().filter((c) => c.cost <= p.elixir);
     // a spell on a real clump
     for (const c of hand.filter((h) => h.card.type === 'spell' && h.card.spell.radius && !['bless', 'wall'].includes(h.card.spell.kind))) {
       const cl = this.clusterAt(th.x, th.y, c.card.spell.radius);
@@ -183,7 +184,7 @@ export class RealmAI {
     if (t > 25 && this.count('tower') < Math.min(towers, 1 + Math.floor(t / 90))) wants.push('tower');
     if (t > 50 && this.count('barracks') < Math.min(barracks, 1 + Math.floor(t / 120))) wants.push('barracks');
     for (const id of wants) {
-      if (p.bricks < STRUCTURES[id].cost) continue;
+      if (p.bricks < STRUCTURES[id].cost || R.atBuildLimit(this.team, id)) continue;
       const spot = this.findSpot(id);
       if (spot && R.orderBuild(this.team, id, spot.x0, spot.y0).ok) return true;
     }
@@ -194,16 +195,16 @@ export class RealmAI {
     const R = this.R;
     const p = this.me;
     const hand = this.hand();
-    const affordable = hand.filter((c) => c.cost <= p.bricks);
+    const affordable = hand.filter((c) => c.cost <= p.elixir);
     if (!affordable.length) return;
     // value spells on enemy clumps
     for (const c of affordable.filter((h) => h.card.type === 'spell' && h.card.spell.radius && !['bless', 'wall'].includes(h.card.spell.kind))) {
       const best = this.bestCluster(c.card.spell.radius);
       if (best && best.value >= c.card.cost * 1.4 && best.friendly < best.value * 0.4 && this.play(c, best.x, best.y)) return;
     }
-    // gather a wave: wait for enough bricks, then play several cards in a row at the same bridge
-    const pushAt = PUSH_AT[this.diffId] * (R.rush ? 0.6 : 1);
-    if (p.bricks < pushAt && !this.pushing) return;
+    // gather a wave: save up elixir, then play several cards in a row at the same bridge
+    const pushAt = PUSH_AT[this.diffId] * (R.rush ? 0.7 : 1);
+    if (p.elixir < pushAt && !this.pushing) return;
     const troops = affordable
       .filter((c) => c.card.type === 'troop' && !c.card.roles.includes('builder'))
       .sort((a, b) => (b.card.roles.includes('tank') ? 1 : 0) - (a.card.roles.includes('tank') ? 1 : 0) || b.cost - a.cost);
@@ -214,7 +215,7 @@ export class RealmAI {
     if (this.play(troops[0], spot.x, spot.y)) {
       // keep the push going for a few cards, then pick a new lane next time
       this.pushing = (this.pushing || 0) + 1;
-      if (this.pushing >= 3 + (this.diffId === 'hard' || this.diffId === 'master' ? 1 : 0) || p.bricks < 30) {
+      if (this.pushing >= 3 + (this.diffId === 'hard' || this.diffId === 'master' ? 1 : 0) || p.elixir < 3) {
         this.pushing = 0;
         this.lane = null;
       }

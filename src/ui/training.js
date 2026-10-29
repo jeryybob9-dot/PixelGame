@@ -2,7 +2,6 @@
 // a time: the game waits while a new idea is shown, only the right button works, and a hand shows what to do.
 
 import { CARDS } from '../data/cards.js';
-import { cardBricks } from '../realm/constants.js';
 import { Guide } from './guide.js';
 import { cardArtURL } from './components.js';
 
@@ -64,7 +63,7 @@ export class TrainingCoach {
     if (this.final && R.phase === 'play') {
       this.idleT += dt;
       const p = R.players[0];
-      const slot = p.hand.findIndex((id) => CARDS[id].type === 'troop' && p.bricks >= cardBricks(CARDS[id]));
+      const slot = p.hand.findIndex((id) => CARDS[id].type === 'troop' && p.elixir >= CARDS[id].cost);
       if (this.idleT > 7 && slot >= 0) {
         const id = p.hand[slot];
         this.guide.hint({ type: 'drag', from: () => this.api.els.cards[slot], to: () => this.api.worldBox(this.bridge.x - 0.5, this.bridge.y + 3, this.bridge.x + 0.5, this.bridge.y + 4), ghost: cardArtURL(id) });
@@ -145,7 +144,7 @@ export class TrainingCoach {
       const qi = p.queue.indexOf(id);
       if (qi >= 0) p.queue.splice(qi, 1);
     }
-    p.bricks = Math.max(p.bricks, cardBricks(CARDS[id]));
+    p.elixir = Math.max(p.elixir, CARDS[id].cost);
     return slot;
   }
 
@@ -354,7 +353,7 @@ export class TrainingCoach {
 
       // building: one line of text, then the hand shows the taps
       {
-        text: 'Buildings make you much stronger. Build a HOUSE: 2 more villagers and extra bricks every second.',
+        text: 'Villagers mine bricks, and bricks pay for buildings. Build a HOUSE: 2 more villagers and faster elixir.',
         enter: () => {
           this.frozen = true;
           me.bricks = Math.max(me.bricks, 60);
@@ -397,8 +396,9 @@ export class TrainingCoach {
         text: 'Your turn! Knock down the red castle.',
         enter: () => {
           R.rush = true;
+          me.elixir = 10;
           me.bricks = Math.max(me.bricks, 150);
-          R.emit('banner', { text: 'BRICK RUSH!', sub: 'Double bricks', kind: 'elixir' });
+          R.emit('banner', { text: 'DOUBLE ELIXIR!', sub: 'Elixir fills twice as fast', kind: 'elixir' });
           api.follow();
         },
         next: 'tap',

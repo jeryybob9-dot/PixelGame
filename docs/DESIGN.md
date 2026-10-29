@@ -2,9 +2,9 @@
 
 **The whole game in one line: knock down the red castle before they knock down yours.**
 
-You and a rival share a small island split by a river. Each side has a castle, a hero and a few villagers. Your
-villagers mine bricks. Bricks pay for everything: troop cards, spells and three kinds of buildings. Your hero walks
-the island and fights; your troops march on the enemy castle by themselves.
+You and a rival share a small island split by a river. Each side has a castle, a hero and a few villagers. Elixir
+refills over time and pays for cards, as in the classic card battler. Your villagers mine bricks, and bricks pay for
+three kinds of buildings. Your hero walks the island and fights; your troops march on the enemy castle by themselves.
 
 Each source game supplies one part, and none of them needs a manual:
 
@@ -25,18 +25,23 @@ Each source game supplies one part, and none of them needs a manual:
   are equal. Your castle is near the bottom, theirs near the top. A river runs across the middle with three bridges
   (left, centre, right).
 - **Your side** is everything below the river. There is no territory to capture.
-- **Brick Rush**: the last minute gives double bricks and faster barracks, so matches end with a big final push.
+- **Double Elixir**: the last minute fills elixir twice as fast (and barracks train faster), so matches end with a
+  big final push.
 
-### Bricks (the only resource)
+### Elixir (cards)
+
+Every card costs its printed elixir (1–7). Elixir starts at 5, holds at most 10 and refills one point every 2 s, 10%
+faster for each House and twice as fast in the last minute. The segmented bar under the hand shows it; a card stays
+dimmed until you can afford it.
+
+### Bricks (buildings)
 
 | Source | Amount |
 | --- | --- |
-| Start | 120 |
-| Trickle | 1.2 per second, +0.5 for every House (all ×2 in the Brick Rush). The brick bar shows the current rate. |
-| Villagers | Mine a brick pile for 3 s and carry 3 bricks home. You start with 4; each House adds 2. Lost villagers are replaced every 12 s. |
+| Start | 100 |
+| Trickle | 0.3 per second. The counter beside BUILD shows the rate. |
+| Villagers | Mine a brick pile for 4 s and carry 2 bricks home. You start with 4; each House adds 2. Lost villagers are replaced every 12 s. |
 | Bounties | 40 for the enemy hero, 40 for a tower, half the price of any other enemy building, 5 for a villager |
-
-A card costs its printed cost × 10 bricks (a Knight is 30, Skeletons are 10, a Giant is 50).
 
 ### Buildings
 
@@ -46,9 +51,9 @@ bridges or on brick piles.
 | Building | Cost | Size | HP | Effect |
 | --- | --- | --- | --- | --- |
 | Castle | — | 3×3 | 9000 | Shoots splash bricks (range 7.5). Spawns villagers. If it falls, you lose. |
-| House | 50 | 2×2 | 900 | +2 villagers and +0.5 bricks/s. Pays for itself in well under a minute. |
-| Tower | 80 | 2×2 | 2400 | Heavy guard: 100 damage per shot with a little splash, range 7. Beats a lone Knight; a real push of two or three cards gets past it. |
-| Barracks | 110 | 3×2 | 1800 | Trains a Soldier every 6 s. Soldiers wait in front of the Barracks until a squad of 3 is ready, then attack together (up to 6 alive per Barracks). |
+| House | 50 (max 4) | 2×2 | 900 | +2 villagers and elixir 10% faster |
+| Tower | 80 (max 3) | 2×2 | 2400 | Heavy guard: 100 damage per shot with a little splash, range 7. Beats a lone Knight; a real push of two or three cards gets past it. |
+| Barracks | 110 (max 2) | 3×2 | 1800 | Trains a Soldier every 6 s. Soldiers wait in front of the Barracks until a squad of 3 is ready, then attack together (up to 6 alive per Barracks). |
 
 ### Troops, spells and the hero
 
@@ -100,7 +105,7 @@ prices, the NEXT card, the minimap, the arrow, the clock) are not covered.
    and the player drops Archers in front of the castle.
 4. **Spells:** drag a Volley onto a group.
 5. **Building:** one line on why buildings matter, then the hand alone shows BUILD → House → spot → confirm.
-6. **Your turn:** a Brick Rush starts and the player finishes the (weakened) red castle. If they stall, the hand
+6. **Your turn:** Double Elixir starts and the player finishes the (weakened) red castle. If they stall, the hand
    suggests a card.
 
 After the win the first Lucky Drop is fixed (its first tap always upgrades it, and it holds enough Knights to level one

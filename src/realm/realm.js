@@ -10,9 +10,9 @@ import { tickStatus, kill, updateProjectiles, updateAreas, isBuildingKind } from
 import { updateTroop, updateBuilding, updateTower, separate } from '../battle/units.js';
 import { updateHero, updatePet, upgradeForm, formUpgradeCost, gadgetReady, useGadget } from '../battle/hero.js';
 import {
-  T, BLOCKING, BUILDABLE, TILE_SPEED, WILD, MATCH_LENGTH, RUSH_AT, BRICKS_START, BRICK_INCOME, CARD_BRICKS, cardBricks,
+  T, BLOCKING, BUILDABLE, TILE_SPEED, WILD, MATCH_LENGTH, RUSH_AT, BRICKS_START, BRICK_INCOME, ELIXIR_START, ELIXIR_MAX, ELIXIR_SECONDS, HOUSE_ELIXIR,
   START_VILLAGERS, HOUSE_VILLAGERS, VILLAGER_RESPAWN, HERO_RESPAWN, HERO_KILL_BRICKS, SUMMON_HERO_RADIUS, VILLAGER, SOLDIER,
-  STRUCTURES, BARRACKS_EVERY, BARRACKS_MAX, BARRACKS_SQUAD, HOUSE_INCOME, MONSTERS, TROOP_HP, TROOP_DMG, TROOP_SPEED, troopCount, SPELL_VS_TROOPS,
+  STRUCTURES, BARRACKS_EVERY, BARRACKS_MAX, BARRACKS_SQUAD, MONSTERS, TROOP_HP, TROOP_DMG, TROOP_SPEED, troopCount, SPELL_VS_TROOPS,
   SPELL_VS_BUILDINGS, HERO_VS_TROOPS, HERO_XP, HERO_XP_PER_SEC, HOME_HEAL, HP_PER_COST, TROOP_VS_BUILDINGS,
 } from './constants.js';
 import { generateRealm } from './worldgen.js';
@@ -83,7 +83,8 @@ export class Realm extends Battle {
   makePlayer(team, setup) {
     const p = super.makePlayer(team, setup);
     p.bricks = BRICKS_START;
-    p.elixir = 0; // unused here: cards cost bricks
+    p.elixir = ELIXIR_START;
+    p.elixirRate = 1 / ELIXIR_SECONDS;
     p.keep = null;
     p.income = BRICK_INCOME;
     p.villagers = 0;
@@ -145,12 +146,19 @@ export class Realm extends Battle {
     return null;
   }
 
+  /** Each kind of building has a cap (sites under construction count). */
+  atBuildLimit(team, id) {
+    const max = STRUCTURES[id]?.max;
+    return !!max && this.structuresOf(team, id, false).length >= max;
+  }
+
   /** Spend bricks and put down a building site (villagers build it). */
   orderBuild(team, id, x0, y0) {
     const p = this.players[team];
     const def = STRUCTURES[id];
     if (!p || !def || id === 'keep') return { ok: false, reason: 'unknown' };
     if (this.phase !== 'play') return { ok: false, reason: 'not-started' };
+    if (this.atBuildLimit(team, id)) return { ok: false, reason: 'limit' };
     if (p.bricks < def.cost) return { ok: false, reason: 'bricks' };
     const prob = this.placementProblem(team, id, x0, y0);
     if (prob) return { ok: false, reason: prob };
@@ -434,18 +442,18 @@ export class Realm extends Battle {
     return best;
   }
 
-  /** Cards cost bricks in Realm Clash. */
+  /** Cards cost elixir. */
   playCard(team, slot, x, y) {
     if (this.phase !== 'play') return { ok: false, reason: 'not-started' };
     const p = this.players[team];
     const cardId = p.hand[slot];
     const card = CARDS[cardId];
     if (!card) return { ok: false, reason: 'no-card' };
-    const cost = cardBricks(card);
-    if (p.bricks < cost) return { ok: false, reason: 'bricks' };
+    const cost = card.cost;
+    if (p.elixir < cost) return { ok: false, reason: 'elixir' };
     const pt = this.previewPlacement(team, cardId, x, y);
     if (!pt) return { ok: false, reason: 'placement' };
-    p.bricks -= cost;
+    p.elixir -= cost;
     p.hand[slot] = p.queue.shift();
     p.queue.push(cardId);
     p.lastPlayed = cardId;
@@ -661,11 +669,6 @@ export class Realm extends Battle {
 
   // ───────────────────────── economy ─────────────────────────
 
-  /** Card effects that would give Faith (the Brick Well) give bricks here. */
-  addElixir(team, n, x, y) {
-    this.addBricks(team, Math.round(n * CARD_BRICKS), x, y);
-  }
-
   dropOffs(team) {
     return this.structures.filter((s) => s.alive && s.team === team && s.built >= 1 && s.struct === 'keep');
   }
@@ -864,9 +867,12 @@ export class Realm extends Battle {
     p.warriors = c.soldiers;
     p.pop = c.villagers;
     p.popCap = p.villagerGoal;
-    // bricks trickle in, faster with every House (twice as fast in the Brick Rush)
+    // elixir refills, 10% faster per House and twice as fast in the last minute
     p.houses = this.structuresOf(team, 'house').length;
-    p.income = (BRICK_INCOME + p.houses * HOUSE_INCOME) * (this.rush ? 2 : 1);
+    p.elixirRate = ((1 + p.houses * HOUSE_ELIXIR) * (this.rush ? 2 : 1)) / ELIXIR_SECONDS;
+    p.elixir = Math.min(ELIXIR_MAX, p.elixir + p.elixirRate * dt);
+    // a few bricks trickle in; villagers mine the rest
+    p.income = BRICK_INCOME;
     p.brickT += p.income * dt;
     if (p.brickT >= 1) {
       const n = Math.floor(p.brickT);
@@ -1085,13 +1091,13 @@ export class Realm extends Battle {
       this.nightK += ((night ? 1 : 0) - this.nightK) * Math.min(1, dt * 0.8);
       return;
     }
-    // the sun sets as time runs out; the last minute is the Brick Rush
+    // the sun sets as time runs out; the last minute is Double Elixir
     const left = this.clock;
     const target = left > RUSH_AT + 30 ? 0 : left > RUSH_AT ? (RUSH_AT + 30 - left) / 30 * 0.45 : 0.45 + (1 - left / RUSH_AT) * 0.3;
     this.nightK += (target - this.nightK) * Math.min(1, dt * 0.6);
     if (!this.rush && left <= RUSH_AT) {
       this.rush = true;
-      this.emit('banner', { text: 'BRICK RUSH!', sub: 'Double bricks for the last minute', kind: 'elixir' });
+      this.emit('banner', { text: 'DOUBLE ELIXIR!', sub: 'Elixir fills twice as fast', kind: 'elixir' });
       this.sfx('age_up');
       this.audio?.setIntensity?.(1);
     }

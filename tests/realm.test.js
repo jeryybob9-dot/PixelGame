@@ -5,7 +5,7 @@ import { RealmAI } from '../src/realm/realm-ai.js';
 import { HordeDirector } from '../src/realm/horde.js';
 import { generateRealm } from '../src/realm/worldgen.js';
 import { Grid } from '../src/realm/grid.js';
-import { T, BLOCKING, STRUCTURES, MATCH_LENGTH, RUSH_AT, BRICK_INCOME, BRICKS_START, START_VILLAGERS, HOUSE_VILLAGERS, HOUSE_INCOME, BARRACKS_SQUAD, cardBricks } from '../src/realm/constants.js';
+import { T, BLOCKING, STRUCTURES, MATCH_LENGTH, RUSH_AT, BRICKS_START, START_VILLAGERS, HOUSE_VILLAGERS, HOUSE_ELIXIR, BARRACKS_SQUAD, ELIXIR_START, ELIXIR_MAX, ELIXIR_SECONDS } from '../src/realm/constants.js';
 import { damage } from '../src/battle/combat.js';
 import { REALM_TILES } from '../src/art/realm-tiles.js';
 import { ARENAS } from '../src/data/arenas.js';
@@ -98,7 +98,7 @@ const spotFor = (R, team, id) => {
   return null;
 };
 
-test('a House adds villagers and passive income', () => {
+test('a House adds villagers and speeds up elixir', () => {
   const R = make(41);
   R.silent = true;
   run(R, 3.5);
@@ -106,7 +106,23 @@ test('a House adds villagers and passive income', () => {
   const at = spotFor(R, 0, 'house');
   R.placeStructure(0, 'house', at.x, at.y, { instant: true });
   run(R, 0.2);
-  assert.equal(p.income, BRICK_INCOME + HOUSE_INCOME);
+  assert.ok(Math.abs(p.elixirRate - (1 + HOUSE_ELIXIR) / ELIXIR_SECONDS) < 1e-9);
+});
+
+test('each building has a limit', () => {
+  const R = make(44);
+  R.silent = true;
+  run(R, 3.5);
+  const p = R.players[0];
+  p.bricks = 5000;
+  let built = 0;
+  for (let i = 0; i < 6; i++) {
+    const at = spotFor(R, 0, 'tower');
+    if (at && R.orderBuild(0, 'tower', at.x, at.y).ok) built++;
+  }
+  assert.equal(built, STRUCTURES.tower.max);
+  const at = spotFor(R, 0, 'tower');
+  assert.equal(R.orderBuild(0, 'tower', at.x, at.y).reason, 'limit');
 });
 
 test('a Tower beats a lone Knight', () => {
@@ -162,7 +178,7 @@ test('every card can be cast in the realm', () => {
     const R = make(10);
     run(R, 3.5);
     const p = R.players[0];
-    p.bricks = 1000;
+    p.elixir = ELIXIR_MAX;
     p.hand[0] = id;
     const k = p.keep;
     const res = R.playCard(0, 0, k.x, k.y - 3.5);
@@ -185,16 +201,22 @@ test('hero joystick moves the hero and never walks on water', () => {
   assert.ok(h.x < x0 - 3);
 });
 
-test('cards cost bricks', () => {
+test('cards cost elixir, which refills over time; bricks are left for buildings', () => {
   const R = make(12);
+  assert.equal(R.players[0].elixir, ELIXIR_START);
   run(R, 3.5);
   const p = R.players[0];
   p.hand[0] = 'knight';
-  p.bricks = cardBricks(CARDS.knight) - 1;
-  assert.equal(R.playCard(0, 0, p.keep.x, p.keep.y - 3.5).reason, 'bricks');
-  p.bricks += 1;
+  const bricks = p.bricks;
+  p.elixir = CARDS.knight.cost - 0.5;
+  assert.equal(R.playCard(0, 0, p.keep.x, p.keep.y - 3.5).reason, 'elixir');
+  run(R, ELIXIR_SECONDS * 0.6);
   assert.ok(R.playCard(0, 0, p.keep.x, p.keep.y - 3.5).ok);
-  assert.equal(p.bricks, 0);
+  assert.ok(p.elixir < 1);
+  assert.ok(p.bricks >= bricks, 'cards must not cost bricks');
+  p.elixir = 0;
+  run(R, 60);
+  assert.equal(p.elixir, ELIXIR_MAX);
 });
 
 test('troops are sturdy: a spell no longer wipes out a fresh squad', () => {
@@ -203,7 +225,7 @@ test('troops are sturdy: a spell no longer wipes out a fresh squad', () => {
     R.silent = true;
     run(R, 3.5);
     const [me, them] = R.players;
-    me.bricks = them.bricks = 1000;
+    me.elixir = them.elixir = ELIXIR_MAX;
     me.hand[0] = troop;
     them.hand[0] = spell;
     const x = me.keep.x + 4;
@@ -220,14 +242,14 @@ test('troops are sturdy: a spell no longer wipes out a fresh squad', () => {
   }
 });
 
-test('the last minute is a Brick Rush with double income', () => {
+test('the last minute is Double Elixir', () => {
   const R = make(15);
   run(R, 3.5);
   assert.equal(R.rush, false);
   R.clock = RUSH_AT + 0.2;
   run(R, 0.5);
   assert.equal(R.rush, true);
-  assert.equal(R.players[0].income, BRICK_INCOME * 2);
+  assert.ok(Math.abs(R.players[0].elixirRate - 2 / ELIXIR_SECONDS) < 1e-9);
 });
 
 test('at time-up the castle with more health wins', () => {

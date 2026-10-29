@@ -150,8 +150,8 @@ export const CARDS = {
     spell: { kind: 'bless', radius: 3, heal: 320, rage: { pct: 0.35, dur: 5 } },
   },
   mine: {
-    name: 'Brick Well', type: 'building', rarity: 'rare', cost: 6, arena: 4, roles: ['economy'],
-    desc: 'Pumps out bricks over time. Protect it and it pays for itself.',
+    name: 'Elixir Well', type: 'building', rarity: 'rare', cost: 6, arena: 4, roles: ['economy'],
+    desc: 'Pumps out elixir and bricks over time. Protect it and it pays for itself.',
     building: { sprite: 'mine', hp: 800, lifetime: 70, radius: 0.7, special: { elixirEvery: 8.5, bricksEvery: 5, bricks: 6 } },
   },
 
@@ -310,7 +310,7 @@ export function cardStatLines(card, level = 1) {
     if (b.targets) lines.push(['Targets', tgt[b.targets] ?? b.targets]);
     lines.push(['Lifetime', `${b.lifetime}s`]);
     if (b.spawn) lines.push(['Spawns', `1 every ${b.spawn.every}s`]);
-    if (b.special?.elixirEvery) lines.push(['Bricks', `+10 every ${b.special.elixirEvery}s`]);
+    if (b.special?.elixirEvery) lines.push(['Elixir', `+1 every ${b.special.elixirEvery}s`]);
   }
   if (s) {
     if (s.dmg) lines.push(['Damage', Math.round(s.dmg * m)]);

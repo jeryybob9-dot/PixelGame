@@ -4,7 +4,7 @@ An original pixel-art game for phones. Knock down the red castle before they kno
 as a 3D world of toy bricks with pixel-sprite heroes and creatures; you can switch to classic 2D in the settings.
 
 - **Move** your hero with a joystick. It fights on its own; POWER fires its special attack.
-- **Mine** bricks with your villagers. Bricks pay for everything.
+- **Spend** elixir on cards; it refills by itself. Villagers mine **bricks** for buildings.
 - **Send** troops by dragging cards onto your side of the river. They march on the enemy castle.
 - **Build** a House, Tower or Barracks.
 
@@ -21,7 +21,7 @@ The full design is in [`docs/DESIGN.md`](docs/DESIGN.md).
   castles' health is always on screen, and an arrow points to the enemy castle.
 - **The island** is freshly generated every match and point-symmetric, so both sides get a fair start. A river
   splits it in two, with three bridges. Your side is everything below the river.
-- **Brick Rush:** the last minute gives double bricks, for a big final push.
+- **Double Elixir:** the last minute fills elixir twice as fast, for a big final push.
 
 **Hero.**
 - Steer with a floating joystick (or WASD). Your hero attacks enemies in range by itself; tap an enemy to focus it.
@@ -29,14 +29,14 @@ The full design is in [`docs/DESIGN.md`](docs/DESIGN.md).
 - Heals beside your castle and respawns there after 5 seconds.
 
 **Village.**
-- Bricks are the only resource. Villagers mine brick piles and carry them home; a few more trickle in every second.
-- Three buildings that matter: House (+2 villagers and +0.5 bricks a second), Tower (a heavy guard that beats a
+- Villagers mine bricks, and bricks pay for buildings (up to 4 Houses, 3 Towers and 2 Barracks).
+- Three buildings that matter: House (+2 villagers and faster elixir), Tower (a heavy guard that beats a
   lone Knight) and Barracks (sends Soldiers in squads of 3).
 - Buildings stand on little team-coloured brick baseplates. Forests burn and regrow, and the sun sets as the clock
   runs down.
 
 **Cards.**
-- An 8-card deck and a 4-card hand of **42 cards**, paid for with bricks (card cost × 10).
+- An 8-card deck and a 4-card hand of **42 cards**, paid for with elixir that refills over time (1–7 per card, 10 max).
 - Troops are sturdy, medium-strength units that march on the enemy castle and hit buildings hard. Swarm cards bring
   a few tough units instead of many fragile ones.
 - Spells strike anywhere but soften troops rather than wiping them out: Meteor, Earthquake, Blessing, Lightning,
@@ -72,6 +72,9 @@ press, and shows the gesture with a pointing hand. Afterwards he shows how to le
 **A storybook UI.** Menus are carved wooden boards with gold trim and steel corner brackets, title plaques, parchment
 pages, ribbon banners and glossy candy buttons. The wood, parchment and brick textures are pixel art painted in code
 (`src/ui/skin.js`), so the interface matches the pixel-art world.
+
+**Progress saves itself** on the device after every change, and to your Claude account when you play on claude.ai,
+so it follows you to another device.
 
 **Built for iPhone.** Touch-first controls, pinch zoom, a minimap, safe-area awareness, haptics in the native app, an
 offline home-screen web app, and synthesized chiptune music and sound effects (no audio files).

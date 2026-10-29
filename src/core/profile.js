@@ -60,6 +60,7 @@ function defaultProfile() {
     settings: { music: 0.55, sfx: 0.85, muted: false, dmgNumbers: true, particles: 'high', haptics: true, leftHanded: false, graphics: '3d' },
     tutorialDone: false,
     tourDone: false,
+    savedAt: 0,
     lastArenaSeen: 0,
   };
 }
@@ -83,21 +84,69 @@ export function getProfile() {
   return profile;
 }
 
+// ───────────── saving ─────────────
+// Every change is written to the device straight away (debounced), a safety net catches anything that changed
+// without a commit, and src/core/cloud.js mirrors the save to the player's account when that is available.
+
 let saveTimer = 0;
+// what is on disk now: loading is not a change, so savedAt only moves when progress really changes
+let lastSaved = JSON.stringify(profile);
+
+function writeLocal() {
+  clearTimeout(saveTimer);
+  const json = JSON.stringify(profile);
+  if (json === lastSaved) return;
+  lastSaved = json;
+  storage.save(SAVE_KEY, profile);
+}
+
 /** Persist (debounced) and notify listeners. */
 export function commit() {
+  profile.savedAt = Date.now();
   events.emit('change', profile);
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => storage.save(SAVE_KEY, profile), 150);
+  saveTimer = setTimeout(writeLocal, 150);
 }
 export function saveNow() {
-  clearTimeout(saveTimer);
-  storage.save(SAVE_KEY, profile);
+  writeLocal();
+}
+
+/** Save anything that changed without a commit (checked every few seconds). */
+export function autosave() {
+  if (JSON.stringify(profile) === lastSaved) return false;
+  commit();
+  writeLocal();
+  return true;
+}
+
+let autosaveTimer = 0;
+export function startAutosave(ms = 5000) {
+  clearInterval(autosaveTimer);
+  autosaveTimer = setInterval(autosave, ms);
+}
+
+/** The save as the cloud copy stores it. */
+export function profileSnapshot() {
+  return { json: JSON.stringify(profile), savedAt: profile.savedAt || 0 };
+}
+
+/** True for a profile nobody has played yet (a new device or a cleared browser). */
+export function isFreshProfile(p = profile) {
+  return !p.tutorialDone && !(p.stats?.battles > 0) && !(p.trophies > 0) && (p.kingLevel || 1) <= 1;
+}
+
+/** Load a save made somewhere else (a newer cloud copy). */
+export function replaceProfile(p) {
+  profile = migrate(p);
+  writeLocal();
+  events.emit('change', profile);
+  events.emit('replaced', profile);
 }
 
 export function resetProfile() {
   profile = defaultProfile();
-  saveNow();
+  profile.savedAt = Date.now();
+  writeLocal();
   events.emit('change', profile);
 }
 

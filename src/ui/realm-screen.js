@@ -10,7 +10,7 @@ import { Realm3DRenderer, webglAvailable } from '../realm3d/render3d.js';
 import { RealmAI } from '../realm/realm-ai.js';
 import { HordeDirector } from '../realm/horde.js';
 import { TrainingCoach } from './training.js';
-import { STRUCTURES, BUILD_MENU, RUSH_AT, cardBricks } from '../realm/constants.js';
+import { STRUCTURES, BUILD_MENU, RUSH_AT, ELIXIR_MAX } from '../realm/constants.js';
 import { spellReady } from '../battle/hero.js';
 import { CARDS } from '../data/cards.js';
 import { ARENAS } from '../data/arenas.js';
@@ -26,7 +26,7 @@ const BUILD_ICON = { house: 'house', barracks: 'barracks', tower: 'princess_towe
 const REASON_TEXT = {
   terrain: 'Can\'t build on that ground', occupied: 'Something is in the way', territory: 'Build on your side of the river',
   fire: 'The ground is burning', deposit: 'Keep brick piles clear', edge: 'Too close to the edge', bridge: 'Keep the bridges clear',
-  bricks: 'Not enough bricks', 'not-started': 'Wait for the match to start',
+  bricks: 'Not enough bricks', limit: 'You have the most you can build', 'not-started': 'Wait for the match to start',
 };
 
 /** A small canvas with a castle sprite in team colours. */
@@ -111,33 +111,38 @@ export const realmScreen = {
     const powerBtn = el('button.r-power', { type: 'button', 'aria-label': 'Hero power' }, powerIcon, el('span.r-power-label', { text: 'POWER' }), el('span.hb-cd'));
     const buildBtn = el('button.r-vbtn.build', { type: 'button', 'aria-label': 'Build' }, icon('ui_hammer', '', 2), el('span', { text: 'BUILD' }));
     const emoteBtn = el('button.r-vbtn.emote', { type: 'button', 'aria-label': 'Emotes' }, icon('emote_thumbs', '', 1));
-    const controls = el('div.r-controls', null, buildBtn, el('div.r-spacer'), enemy ? emoteBtn : null, heroBox, powerBtn);
+    // bricks pay for buildings, so the brick counter sits beside BUILD
+    const brickNum = el('b.r-bricks-num', { text: '0' });
+    const brickRate = el('span.r-bricks-rate', { text: '' });
+    const brickBar = el('div.r-bricks', { 'aria-label': 'Bricks' }, icon('ui_brick', '', 3), brickNum, brickRate);
+    const controls = el('div.r-controls', null, buildBtn, brickBar, enemy ? emoteBtn : null, heroBox, powerBtn);
 
     const nextImg = el('img.next-art', { alt: '' });
     const nextBox = el('div.next-card', null, el('small', { text: 'NEXT' }), nextImg);
     const cardEls = [0, 1, 2, 3].map((i) => {
       const fill = el('div.hc-fill');
       const node = el('button.hand-card', { type: 'button', dataset: { slot: String(i) } },
-        el('img.hc-art', { alt: '', draggable: 'false' }), el('div.hc-cost.bricks', null, el('span')), fill);
+        el('img.hc-art', { alt: '', draggable: 'false' }), el('div.hc-cost', null, el('span')), fill);
       return { node, img: node.querySelector('img'), cost: node.querySelector('.hc-cost span'), fill, id: null };
     });
     const hand = el('div.hand', null, nextBox, ...cardEls.map((c) => c.node));
-    const brickNum = el('b.r-bricks-num', { text: '0' });
-    const brickRate = el('span.r-bricks-rate', { text: '' });
-    const brickBar = el('div.r-bricks', null, icon('ui_brick', '', 3), brickNum, el('span.r-bricks-label', { text: 'BRICKS' }), brickRate);
+    // elixir pays for cards: the classic segmented bar under the hand
+    const elixirNum = el('div.ex-num', { text: '5' });
+    const elixirSegs = Array.from({ length: ELIXIR_MAX }, () => el('div.ex-seg', null, el('div.ex-fill')));
+    const elixirBar = el('div.elixir-bar.r-elixir', { 'aria-label': 'Elixir' }, elixirNum, el('div.ex-segs', null, ...elixirSegs));
     const buildItems = BUILD_MENU.map((id) => {
       const def = STRUCTURES[id];
       const node = el('button.r-build-item', { type: 'button', dataset: { id } },
         icon(BUILD_ICON[id], 'r-build-icon', 1), el('span.r-build-name', { text: def.name }), el('span.r-build-desc', { text: def.desc }),
-        el('span.r-build-cost', null, icon('ui_brick', '', 1), String(def.cost)));
-      return { id, node };
+        el('span.r-build-cost', null, icon('ui_brick', '', 1), String(def.cost)), el('span.r-build-count'));
+      return { id, node, count: node.querySelector('.r-build-count') };
     });
     const buildHint = el('div.r-build-hint', { text: 'Pick a building, then tap your side of the river.' });
     const confirmBtn = el('button.btn.btn-gold.r-confirm', { type: 'button', hidden: true }, '✓ Build');
     const cancelBtn = el('button.btn.btn-ghost.r-cancel', { type: 'button' }, 'Done');
     const buildTray = el('div.r-build', { hidden: true }, el('div.r-build-row', null, ...buildItems.map((b) => b.node)), el('div.r-build-foot', null, buildHint, confirmBtn, cancelBtn));
-    const tray = el('div.r-tray', null, hand);
-    const bottom = el('div.r-bottom', null, controls, brickBar, tray, buildTray);
+    const tray = el('div.r-tray', null, hand, elixirBar);
+    const bottom = el('div.r-bottom', null, controls, tray, buildTray);
     const screen = el('div.realm', null, top, castles, mapWrap, bottom);
     root.appendChild(screen);
 
@@ -192,7 +197,7 @@ export const realmScreen = {
     const ghostFor = (cardId, wx, wy) => {
       const card = CARDS[cardId];
       const pos = R.previewPlacement(0, cardId, wx, wy);
-      const valid = !!pos && R.players[0].bricks >= cardBricks(card);
+      const valid = !!pos && R.players[0].elixir >= card.cost;
       const u = card.unit;
       const b = card.building;
       return {
@@ -225,17 +230,17 @@ export const realmScreen = {
       ui.summonZone = selected >= 0 ? zoneFor(R.players[0].hand[selected]) : null;
       if (selected >= 0) app.sfx('card_select', { volume: 0.6 });
     };
-    const flashBricks = () => {
-      brickBar.classList.remove('shake');
-      void brickBar.offsetWidth;
-      brickBar.classList.add('shake');
+    const flash = (node) => {
+      node.classList.remove('shake');
+      void node.offsetWidth;
+      node.classList.add('shake');
     };
     const tryCast = (slot, wx, wy) => {
       const res = R.playCard(0, slot, wx, wy);
       if (!res.ok) {
-        if (res.reason === 'bricks') {
-          flashBricks();
-          app.toast('Not enough bricks yet', 'bad', 900);
+        if (res.reason === 'elixir') {
+          flash(elixirBar);
+          app.toast('Not enough elixir yet', 'bad', 900);
         } else if (res.reason === 'placement') app.toast('Drop troops on your side of the river (or next to your hero)', 'bad', 1500);
         app.sfx('ui_error', { volume: 0.5 });
         return false;
@@ -497,7 +502,7 @@ export const realmScreen = {
         confirmBuild();
         return;
       }
-      const prob = R.placementProblem(0, buildSel, x0, y0);
+      const prob = R.atBuildLimit(0, buildSel) ? 'limit' : R.placementProblem(0, buildSel, x0, y0);
       const afford = R.players[0].bricks >= def.cost;
       ui.build = { id: buildSel, x0, y0, valid: !prob && afford, prob: prob || (afford ? null : 'bricks') };
       confirmBtn.hidden = false;
@@ -628,8 +633,8 @@ export const realmScreen = {
         el('div.pause-rules', null,
           el('p', null, el('b', { text: 'Goal: ' }), mode === 'horde' ? 'Keep your castle standing as long as you can.' : 'Destroy the red castle. If time runs out, the castle with more health wins.'),
           el('p', null, el('b', { text: 'Move: ' }), 'drag on the left of the island. Tap an enemy to attack it.'),
-          el('p', null, el('b', { text: 'Troops: ' }), 'drag a card onto your side of the river. They march on the enemy castle.'),
-          el('p', null, el('b', { text: 'Bricks: ' }), 'your villagers mine them. Houses give more villagers.')),
+          el('p', null, el('b', { text: 'Cards: ' }), 'cost elixir, which refills by itself. Drag a troop onto your side of the river and it marches on the enemy castle.'),
+          el('p', null, el('b', { text: 'Buildings: ' }), 'cost bricks, which your villagers mine. Houses add villagers and speed up elixir.')),
         el('button.btn.btn-ghost', { type: 'button', onclick: () => {
           const muted = !getProfile().settings.muted;
           setSetting('muted', muted);
@@ -701,7 +706,7 @@ export const realmScreen = {
     let camTrack = null;
     const api = {
       els: {
-        hand, cards: cardEls.map((c) => c.node), nextBox, brickBar, buildBtn, confirmBtn, powerBtn, heroBox, castles, clock: clockBox, pauseBtn,
+        hand, cards: cardEls.map((c) => c.node), nextBox, brickBar, elixirBar, buildBtn, confirmBtn, powerBtn, heroBox, castles, clock: clockBox, pauseBtn,
         minimap, goalArrow, villagerChip, buildItem: (id) => buildItems.find((b) => b.id === id)?.node,
       },
       mapRect: () => {
@@ -887,34 +892,44 @@ export const realmScreen = {
         setText(clockSub, 'csub', R.night ? `NIGHT ${R.horde?.night || 1}` : `DAY ${(R.horde?.night || 0) + 1}`);
       } else {
         setText(clockEl, 'clock', fmtTime(R.clock));
-        setText(clockSub, 'csub', R.rush ? 'BRICK RUSH x2' : 'TIME LEFT');
+        setText(clockSub, 'csub', R.rush ? 'DOUBLE ELIXIR' : 'TIME LEFT');
         clockEl.classList.toggle('hot', R.clock <= RUSH_AT);
       }
       setCastle(myCastle, 0, 'c0');
       if (R.players[1]) setCastle(theirCastle, 1, 'c1');
       updateGoalArrow();
       setText(villagerChip.lastChild, 'vill', `${p.villagers}`);
-      // bricks
+      // bricks and elixir
       setText(brickNum, 'bricks', String(p.bricks));
-      setText(brickRate, 'rate', `${R.rush ? 'RUSH ' : ''}+${(p.income || 0).toFixed(1)}/s`);
-      brickBar.classList.toggle('rush', R.rush);
+      setText(brickRate, 'rate', `+${(p.income || 0).toFixed(1)}/s`);
+      const ex = Math.max(0, Math.min(ELIXIR_MAX, p.elixir || 0));
+      setText(elixirNum, 'elixir', String(Math.floor(ex)));
+      for (let i = 0; i < ELIXIR_MAX; i++) {
+        const f = Math.max(0, Math.min(1, ex - i));
+        if (hudCache['ex' + i] !== f) {
+          hudCache['ex' + i] = f;
+          elixirSegs[i].firstChild.style.transform = `scaleX(${f})`;
+          elixirSegs[i].classList.toggle('full', f >= 1);
+        }
+      }
+      elixirBar.classList.toggle('x2', R.rush);
       // hand
       for (let i = 0; i < 4; i++) {
         const c = cardEls[i];
         const id = p.hand[i];
-        const cost = cardBricks(CARDS[id]);
+        const cost = CARDS[id].cost;
         if (c.id !== id) {
           c.id = id;
           c.img.src = cardArtURL(id);
           c.cost.textContent = String(cost);
           c.node.className = `hand-card r-${CARDS[id].rarity}${i === selected ? ' selected' : ''}`;
-          c.node.setAttribute('aria-label', `${CARDS[id].name}, ${cost} bricks`);
+          c.node.setAttribute('aria-label', `${CARDS[id].name}, ${cost} elixir`);
           c.node.classList.add('cycled');
           setTimeout(() => c.node.classList.remove('cycled'), 250);
         }
-        const ready = p.bricks >= cost;
+        const ready = ex >= cost;
         c.node.classList.toggle('poor', !ready);
-        const frac = ready ? 0 : 1 - p.bricks / cost;
+        const frac = ready ? 0 : 1 - ex / cost;
         if (hudCache['fill' + i] !== frac) {
           hudCache['fill' + i] = frac;
           c.fill.style.transform = `scaleY(${frac})`;
@@ -926,9 +941,14 @@ export const realmScreen = {
         nextImg.src = cardArtURL(nextId);
       }
       if (buildMode) {
-        for (const b of buildItems) b.node.classList.toggle('poor', p.bricks < STRUCTURES[b.id].cost);
+        for (const b of buildItems) {
+          const n = R.structuresOf(0, b.id, false).length;
+          const max = STRUCTURES[b.id].max;
+          setText(b.count, 'cnt' + b.id, max ? `${n}/${max}` : '');
+          b.node.classList.toggle('poor', p.bricks < STRUCTURES[b.id].cost || (!!max && n >= max));
+        }
         if (ui.build) {
-          const prob = R.placementProblem(0, ui.build.id, ui.build.x0, ui.build.y0);
+          const prob = R.atBuildLimit(0, ui.build.id) ? 'limit' : R.placementProblem(0, ui.build.id, ui.build.x0, ui.build.y0);
           const afford = p.bricks >= STRUCTURES[ui.build.id].cost;
           const valid = !prob && afford;
           if (valid !== ui.build.valid) {

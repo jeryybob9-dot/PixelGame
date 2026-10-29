@@ -1,7 +1,7 @@
 // Realm Clash rules: map size, timings, bricks, buildings and unit tuning. See docs/DESIGN.md.
 //
-// The whole game in one line: destroy the enemy castle before they destroy yours. Villagers mine bricks; bricks pay
-// for troops, spells and buildings.
+// The whole game in one line: destroy the enemy castle before they destroy yours. Elixir refills over time and pays for
+// cards; villagers mine bricks, and bricks pay for buildings.
 
 export const REALM_W = 30;
 export const REALM_H = 46;
@@ -20,26 +20,27 @@ export const WILD = 2; // team id for wild animals and Horde monsters
 
 // ── the match ──
 export const MATCH_LENGTH = 300; // 5 minutes
-export const RUSH_AT = 60; // seconds left when Brick Rush (double income) starts
+export const RUSH_AT = 60; // seconds left when Double Elixir starts
 export const COUNTDOWN = 3.2;
 
-// ── bricks: the only resource ──
-export const BRICKS_START = 120;
-export const BRICK_INCOME = 1.2; // passive bricks per second (x2 in the Rush)
-export const CARD_BRICKS = 10; // a card costs card.cost * CARD_BRICKS bricks
-export const CARRY = 3; // bricks a villager carries home per trip
-export const MINE_TIME = 3;
+// ── elixir pays for cards ──
+export const ELIXIR_START = 5;
+export const ELIXIR_MAX = 10;
+export const ELIXIR_SECONDS = 2; // seconds per elixir (twice as fast in the last minute)
+export const HOUSE_ELIXIR = 0.1; // each finished House speeds elixir up by 10%
+
+// ── bricks pay for buildings ──
+export const BRICKS_START = 100;
+export const BRICK_INCOME = 0.3; // passive bricks per second; villagers mine the rest
+export const CARRY = 2; // bricks a villager carries home per trip
+export const MINE_TIME = 4;
 export const START_VILLAGERS = 4;
 export const HOUSE_VILLAGERS = 2;
-export const HOUSE_INCOME = 0.5; // passive bricks per second for each finished House
 export const VILLAGER_RESPAWN = 12; // seconds until a lost villager is replaced
 export const HERO_RESPAWN = 5;
 export const HERO_KILL_BRICKS = 40;
 export const SUMMON_HERO_RADIUS = 4;
 export const HOME_HEAL = 0.08; // a hero near its own castle heals this share of max HP per second
-
-/** Brick cost of a card in Realm Clash. */
-export const cardBricks = (card) => (card?.cost || 0) * CARD_BRICKS;
 
 // ── troops: fewer, sturdier units so armies matter ──
 export const TROOP_HP = 2.2; // realm HP multiplier for summoned troops
@@ -66,9 +67,9 @@ export const SOLDIER = { sprite: 'knight', hp: 620, dmg: 70, hs: 1.1, speed: 1.2
  */
 export const STRUCTURES = {
   keep: { name: 'Castle', cost: 0, w: 3, h: 3, hp: 9000, claim: 8, build: 0, sprite: 'keep', dmg: 85, hs: 1.0, range: 7.5, splash: 0.8, desc: 'Your castle. If it falls, you lose.' },
-  house: { name: 'House', cost: 50, w: 2, h: 2, hp: 900, claim: 3, build: 5, sprite: 'house', desc: '+2 villagers and +0.5 bricks/s.' },
-  tower: { name: 'Tower', cost: 80, w: 2, h: 2, hp: 2400, claim: 4, build: 5, sprite: 'princess_tower', dmg: 100, hs: 0.95, range: 7, splash: 0.5, desc: 'Heavy guard. Beats a lone Knight.' },
-  barracks: { name: 'Barracks', cost: 110, w: 3, h: 2, hp: 1800, claim: 3, build: 6, sprite: 'barracks', desc: 'Sends Soldiers in squads of 3.' },
+  house: { name: 'House', cost: 50, max: 4, w: 2, h: 2, hp: 900, claim: 3, build: 5, sprite: 'house', desc: '+2 villagers, elixir 10% faster.' },
+  tower: { name: 'Tower', cost: 80, max: 3, w: 2, h: 2, hp: 2400, claim: 4, build: 5, sprite: 'princess_tower', dmg: 100, hs: 0.95, range: 7, splash: 0.5, desc: 'Heavy guard. Beats a lone Knight.' },
+  barracks: { name: 'Barracks', cost: 110, max: 2, w: 3, h: 2, hp: 1800, claim: 3, build: 6, sprite: 'barracks', desc: 'Sends Soldiers in squads of 3.' },
 };
 export const BUILD_MENU = ['house', 'tower', 'barracks'];
 export const BARRACKS_EVERY = 6; // seconds per Soldier

@@ -23,7 +23,7 @@ export const cardsTab = {
         app.sfx('ui_click');
         render();
       } }, `Deck ${i + 1}`)));
-      const head = el('div.deck-head', null, slots, el('div.deck-avg', null, icon('ui_brick', '', 2), el('span', { text: `Avg ${Math.round(deckAverage() * 10)}` })));
+      const head = el('div.deck-head', null, slots, el('div.deck-avg', null, icon('ui_elixir', '', 2), el('span', { text: `Avg ${deckAverage().toFixed(1)}` })));
       const grid = el(`div.deck-grid${swapping ? '.swapping' : ''}`, null, ...deck.map((id, slot) => {
         const info = cardUpgradeInfo(id);
         const tile = cardTile(id, { level: cardLevel(id), count: p.cards[id]?.count, need: info && !info.maxed ? info.cards : null, onClick: () => {
@@ -57,7 +57,7 @@ export const cardsTab = {
       if (!deck.some((id) => CARDS[id].roles.includes('win'))) tips.push('Add a big hitter (Stone Giant, Boar Rider…) to knock down castles.');
       if (!deck.some((id) => CARDS[id].roles.includes('air') || CARDS[id].unit?.targets === 'both' || CARDS[id].building?.targets === 'both')) tips.push('Nothing hits air! Add Archers, Blaster Goblins or a Brick Tower.');
       if (!roles.has('spell_small') && !roles.has('spell_big')) tips.push('A spell helps against groups of enemies.');
-      if (!roles.has('builder') && !roles.has('economy')) tips.push('Builders bring extra villagers, and villagers mine more bricks.');
+      if (!roles.has('builder') && !roles.has('economy')) tips.push('Builders bring extra villagers, and villagers mine bricks for buildings.');
       if (tips.length) view.append(el('div.deck-tips', null, ...tips.map((t) => el('p', { text: t }))));
 
       // collection
@@ -107,7 +107,7 @@ export function openCard(app, id, onChange, onUse) {
     const nxt = level < MAX_CARD_LEVEL ? cardStatLines(c, level + 1) : null;
     body.append(
       el('div.cd-top', null,
-        el('div.cd-art', { class: `r-${c.rarity}` }, el('img', { src: cardArtURL(id), alt: '' }), el('div.card-cost', null, el('span', { text: String(c.cost * 10) }))),
+        el('div.cd-art', { class: `r-${c.rarity}` }, el('img', { src: cardArtURL(id), alt: '' }), el('div.card-cost', null, el('span', { text: String(c.cost) }))),
         el('div.cd-meta', null,
           el('div.cd-rarity', { style: { color: r.color }, text: `${r.name} ${c.type === 'troop' ? 'Troop' : c.type === 'spell' ? 'God Power' : 'Building'}` }),
           el('div.cd-level', { text: owned ? `Level ${level}${level >= MAX_CARD_LEVEL ? ' (max)' : ''}` : `Unlocks in ${ARENAS[c.arena].name}` }),

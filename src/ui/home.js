@@ -16,6 +16,8 @@ import { heroTab } from './hero-tab.js';
 import { shopTab } from './shop-tab.js';
 import { openTrophyRoad } from './trophy-road.js';
 import { maybeStartTour } from './tour.js';
+import { cloudStatus } from '../core/cloud.js';
+import { storage } from '../core/storage.js';
 
 const TABS = [
   { id: 'shop', label: 'Shop', icon: 'ui_gold' },
@@ -261,6 +263,7 @@ export function openSettings(app) {
     toggle('set-fx', 'Extra particles', 'particles', 'high', 'low'),
     toggle('set-3d', '3D island (off = classic 2D)', 'graphics', '3d', '2d'),
     el('button.btn.btn-ghost.wide', { type: 'button', onclick: () => openHowTo(app) }, 'How to play'),
+    el('p.save-note', { text: saveNote() }),
     el('button.btn.btn-red.wide', { type: 'button', onclick: async () => {
       const yes = await app.confirm({ title: 'Reset all progress?', text: 'Cards, trophies, gold and heroes will be lost. This cannot be undone.', yes: 'Reset', danger: true });
       if (yes) {
@@ -273,13 +276,21 @@ export function openSettings(app) {
   app.modal(body, { title: 'Settings' });
 }
 
+/** One line on where progress is kept. */
+function saveNote() {
+  const cloud = cloudStatus();
+  if (cloud === 'saved' || cloud === 'saving' || cloud === 'connecting') return '✓ Progress saves automatically, on this device and to your Claude account.';
+  if (storage.isPersistent()) return '✓ Progress saves automatically on this device.';
+  return 'This browser is blocking storage, so progress lasts until you close the game.';
+}
+
 export function openHowTo(app) {
   const items = [
     ['Goal', 'Knock down the RED castle across the river. Keep your BLUE castle standing. If the 5 minutes run out, the castle with more health wins.'],
     ['Move', 'Drag on the left side of the island to walk your hero. It attacks enemies in range by itself; tap an enemy to focus it. POWER fires your hero\'s special attack. Your hero levels up by fighting, heals beside your castle, and its gadget fires by itself when it is hurt.'],
-    ['Bricks', 'Bricks pay for everything. Your villagers mine them, and a few more trickle in every second. The last minute is the Brick Rush: double bricks!'],
+    ['Elixir and bricks', 'Cards cost ELIXIR, which refills by itself (twice as fast in the last minute). Buildings cost BRICKS, which your villagers mine.'],
     ['Troops', 'Drag a card onto your side of the river (or next to your hero). Troops march to the red castle on their own. They are tough, so a group of three or four is a real push.'],
-    ['Build', 'Tap BUILD and place a House (+2 villagers and +0.5 bricks a second), a Tower (a heavy guard) or a Barracks (sends Soldiers in squads of 3) on your side of the river.'],
+    ['Build', 'Tap BUILD and place a House (+2 villagers, elixir 10% faster), a Tower (a heavy guard) or a Barracks (sends Soldiers in squads of 3) on your side of the river.'],
     ['Progress', 'Wins give trophies, gold and a Lucky Drop. Tap the drop to try to upgrade it before opening. Unlock new Realms, upgrade cards, weapons and heroes between matches.'],
   ];
   const body = el('div.howto', null, ...items.map(([h, t]) => el('div.howto-item', null, el('h3', { text: h }), el('p', { text: t }))));

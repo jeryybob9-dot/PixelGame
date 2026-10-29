@@ -169,9 +169,13 @@ Music themes: menu, meadow, desert, frost, swamp, crystal, lava, candy, void, go
   `routeTo(e, x, y)` (cached A*), `constrain(e)`, `landSafely(e)`, `unitGoal(e)` (march goals), `speedAt(x, y)`,
   `canBurn(tx, ty)`, `onKill(e, src)` and `spellMult(e)` (spells hit troops 0.7× and buildings 0.6×).
   `B.W`/`B.H` give the map size: 18×32 for the lane arena, 30×46 for a realm.
-- All rules and tuning live in `src/realm/constants.js`: match length, Brick Rush, brick income, buildings, troop
-  multipliers, hero XP. Bricks are the only resource (`player.bricks`); a card costs `cardBricks(card)` =
-  cost × 10. `player.elixir` is unused in the realm.
+- All rules and tuning live in `src/realm/constants.js`: match length, Double Elixir, elixir and brick income, building
+  limits, troop multipliers, hero XP. Cards cost elixir (`player.elixir`, refilled at `player.elixirRate`); buildings
+  cost bricks (`player.bricks`, mined by villagers). `atBuildLimit(team, id)` enforces each building's `max`.
+- Saving: `src/core/profile.js` writes the profile to the device on every commit, and an autosave timer catches
+  direct changes. `src/core/cloud.js` mirrors it to `data/users/<id>/save` in the artifact's `db` when the game runs on
+  claude.ai (declare `capabilities: {db: {}, user: {}}` when publishing); the newer save wins on load, and a fresh
+  profile never overwrites real progress.
 - Territory is fixed: `R.owner` (Int8Array) is team 1 above the river and team 0 below it. Worldgen always makes the
   river with three bridges (`map.bridges`); buildings may not block a bridge.
 - Entity kinds: `tower` (castle = type `king`, Tower = type `princess`), `building` (structures with `struct` and
